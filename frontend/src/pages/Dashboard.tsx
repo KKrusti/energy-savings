@@ -1,17 +1,42 @@
+import { useState, useCallback, useEffect } from 'react'
 import { Tag, TrendingDown, Clock } from 'lucide-react'
-import { SimulationForm } from '@/components/SimulationForm'
-import { SimulationResult } from '@/components/SimulationResult'
+import { MonthlyInputTable, buildDefaultMonths } from '@/components/MonthlyInputTable'
+import { AnnualCostChart } from '@/components/AnnualCostChart'
+import { MonthlyBreakdownChart } from '@/components/MonthlyBreakdownChart'
 import { useOffers } from '@/hooks/useOffers'
-import { useSimulation } from '@/hooks/useSimulation'
-import type { SimulationRequest } from '@/types'
+import { useAnnualSimulation } from '@/hooks/useAnnualSimulation'
+import { useConsumptionHistory, useSaveConsumptionHistory } from '@/hooks/useConsumptionHistory'
+import type { AnnualSimulationRequest, AnnualOfferResult } from '@/types'
 
 export function DashboardPage() {
   const { data: offers = [] } = useOffers()
-  const simulation = useSimulation()
+  const annualSimulation = useAnnualSimulation()
+  const { data: savedHistory, isSuccess: historyLoaded } = useConsumptionHistory()
+  const saveHistory = useSaveConsumptionHistory()
 
-  const handleSimulate = (data: SimulationRequest) => {
-    simulation.mutate(data)
+  const [annualReq, setAnnualReq] = useState<AnnualSimulationRequest>(() => ({
+    months: buildDefaultMonths(),
+  }))
+  const [selectedOffer, setSelectedOffer] = useState<AnnualOfferResult | null>(null)
+
+  // Populate the table with saved history once it loads.
+  // Only replace if the server returned at least one entry.
+  useEffect(() => {
+    if (historyLoaded && savedHistory && savedHistory.months.length > 0) {
+      setAnnualReq({ months: savedHistory.months })
+    }
+  }, [historyLoaded, savedHistory])
+
+  const handleAnnualSimulate = () => {
+    setSelectedOffer(null)
+    // Persist current table data before simulating
+    saveHistory.mutate({ months: annualReq.months })
+    annualSimulation.mutate(annualReq)
   }
+
+  const handleSelectOffer = useCallback((offer: AnnualOfferResult | null) => {
+    setSelectedOffer(offer)
+  }, [])
 
   return (
     <section>
@@ -52,21 +77,57 @@ export function DashboardPage() {
         </div>
       )}
 
-      {/* Formulario simulación */}
+      {/* Comparación anual */}
       <div className="mb-6">
-        <SimulationForm onSubmit={handleSimulate} isLoading={simulation.isPending} />
+        <h2 className="text-lg font-semibold text-[#F8FAFC]">Comparación anual</h2>
+        <p className="text-slate-400 text-sm mt-1">
+          Introduce el consumo mensual por franjas y compara el coste con todas las ofertas a lo largo del año.
+          Los datos se guardan automáticamente al calcular.
+        </p>
       </div>
 
-      {/* Error de simulación */}
-      {simulation.isError && (
+      <div className="mb-4">
+        <MonthlyInputTable value={annualReq} onChange={setAnnualReq} />
+      </div>
+
+      <div className="mb-8 flex items-center gap-3">
+        <button
+          onClick={handleAnnualSimulate}
+          disabled={annualSimulation.isPending || offers.length === 0}
+          className="px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-medium
+            hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {annualSimulation.isPending ? 'Calculando…' : 'Calcular año completo'}
+        </button>
+        {saveHistory.isSuccess && (
+          <span className="text-xs text-emerald-400">Datos guardados</span>
+        )}
+        {saveHistory.isError && (
+          <span className="text-xs text-red-400">Error al guardar</span>
+        )}
+      </div>
+
+      {annualSimulation.isError && (
         <div role="alert" className="rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-red-400 text-sm mb-6">
-          {simulation.error instanceof Error ? simulation.error.message : 'Error al simular'}
+          {annualSimulation.error instanceof Error ? annualSimulation.error.message : 'Error al calcular'}
         </div>
       )}
 
-      {/* Resultados */}
-      {simulation.data && (
-        <SimulationResult breakdowns={simulation.data.breakdowns} />
+      {annualSimulation.data && annualSimulation.data.offers.length > 0 && (
+        <div className="space-y-6">
+          <AnnualCostChart
+            data={annualSimulation.data}
+            onSelectOffer={handleSelectOffer}
+            selectedOfferId={selectedOffer?.offer_id ?? null}
+          />
+
+          {selectedOffer && (
+            <MonthlyBreakdownChart
+              offer={selectedOffer}
+              onClose={() => setSelectedOffer(null)}
+            />
+          )}
+        </div>
       )}
     </section>
   )

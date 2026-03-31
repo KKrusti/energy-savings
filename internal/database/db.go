@@ -91,6 +91,31 @@ var migrations = []migration{
 			WHERE energy_price_peak_kwh = 0`,
 		},
 	},
+	{
+		version: 3,
+		stmts: []string{
+			// Historical monthly consumption entered by the user.
+			// (month, year) is the natural key; upserts replace the whole row.
+			`CREATE TABLE IF NOT EXISTS consumption_history (
+				id              INTEGER  PRIMARY KEY AUTOINCREMENT,
+				month           INTEGER  NOT NULL CHECK (month BETWEEN 1 AND 12),
+				year            INTEGER  NOT NULL,
+				peak_kwh        REAL     NOT NULL DEFAULT 0,
+				mid_kwh         REAL     NOT NULL DEFAULT 0,
+				valley_kwh      REAL     NOT NULL DEFAULT 0,
+				power_peak_kw   REAL     NOT NULL DEFAULT 0,
+				power_valley_kw REAL     NOT NULL DEFAULT 0,
+				surplus_kwh     REAL     NOT NULL DEFAULT 0,
+				updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				UNIQUE (month, year)
+			)`,
+			`CREATE TRIGGER IF NOT EXISTS consumption_history_updated_at
+				AFTER UPDATE ON consumption_history
+				BEGIN
+					UPDATE consumption_history SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+				END`,
+		},
+	},
 }
 
 func migrate(ctx context.Context, db *sql.DB) error {

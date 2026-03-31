@@ -4,6 +4,9 @@ import type {
   UpdateOfferInput,
   SimulationRequest,
   SimulationResponse,
+  AnnualSimulationRequest,
+  AnnualSimulationResponse,
+  ConsumptionHistoryResponse,
 } from '@/types'
 
 const BASE = '/api'
@@ -36,4 +39,13 @@ export const offersApi = {
 export const simulationApi = {
   simulate: (data: SimulationRequest) =>
     request<SimulationResponse>('/simulate', { method: 'POST', body: JSON.stringify(data) }),
+  simulateAnnual: (data: AnnualSimulationRequest) =>
+    request<AnnualSimulationResponse>('/simulate/annual', { method: 'POST', body: JSON.stringify(data) }),
+}
+
+// Consumption history
+export const consumptionApi = {
+  getHistory: () => request<ConsumptionHistoryResponse>('/consumption/history'),
+  saveHistory: (data: ConsumptionHistoryResponse) =>
+    request<void>('/consumption/history', { method: 'PUT', body: JSON.stringify(data) }),
 }

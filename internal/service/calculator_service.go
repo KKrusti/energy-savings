@@ -80,6 +80,103 @@ func (s *CalculatorService) CalculateAll(offers []domain.Offer, req domain.Simul
 	return domain.SimulationResponse{Breakdowns: breakdowns}
 }
 
+// CalculateMonthly returns an itemized BillBreakdown for a single offer using real
+// tiered consumption data (peak/mid/valley kWh) for one calendar month.
+//
+// Energy: when EnergyPriceFlat each kWh is billed at EnergyPricePeakKWh;
+// otherwise each period's kWh is multiplied by its own price.
+//
+// Power: when PowerTermSamePrice both contracted-power values use the same price;
+// otherwise PowerPeakKW uses PowerTermPricePeak and PowerValleyKW uses PowerTermPriceValley.
+func (s *CalculatorService) CalculateMonthly(offer domain.Offer, m domain.MonthlyConsumption) domain.BillBreakdown {
+	var energyTerm float64
+	if offer.EnergyPriceFlat {
+		totalKWh := m.PeakKWh + m.MidKWh + m.ValleyKWh
+		energyTerm = totalKWh * offer.EnergyPricePeakKWh
+	} else {
+		energyTerm = m.PeakKWh*offer.EnergyPricePeakKWh +
+			m.MidKWh*offer.EnergyPriceMidKWh +
+			m.ValleyKWh*offer.EnergyPriceValleyKWh
+	}
+
+	dayFraction := float64(m.Days) / 365.0
+	var powerTerm float64
+	if offer.PowerTermSamePrice {
+		powerTerm = (m.PowerPeakKW + m.PowerValleyKW) * offer.PowerTermPricePeak * dayFraction
+	} else {
+		powerTerm = m.PowerPeakKW*offer.PowerTermPricePeak*dayFraction +
+			m.PowerValleyKW*offer.PowerTermPriceValley*dayFraction
+	}
+
+	// Surplus solar credit (negative item on the bill)
+	surplusCredit := m.SurplusKWh * offer.SurplusCompensation
+
+	meterRental := MeterRentalDailyRate * float64(m.Days)
+	electricityTax := (energyTerm + powerTerm) * ElectricityTaxRate
+	subtotal := energyTerm + powerTerm + electricityTax + meterRental - surplusCredit
+	iva := subtotal * IVARate
+	total := subtotal + iva
+
+	return domain.BillBreakdown{
+		OfferID:        offer.ID,
+		OfferName:      offer.Name,
+		Provider:       offer.Provider,
+		EnergyTerm:     round2(energyTerm),
+		PowerTerm:      round2(powerTerm),
+		SurplusCredit:  round2(surplusCredit),
+		ElectricityTax: round2(electricityTax),
+		MeterRental:    round2(meterRental),
+		IVA:            round2(iva),
+		Total:          round2(total),
+	}
+}
+
+// CalculateAnnual returns an AnnualSimulationResponse for all offers over the provided months.
+func (s *CalculatorService) CalculateAnnual(offers []domain.Offer, req domain.AnnualSimulationRequest) domain.AnnualSimulationResponse {
+	results := make([]domain.AnnualOfferResult, 0, len(offers))
+	for _, o := range offers {
+		months := make([]domain.MonthlyBillBreakdown, 0, len(req.Months))
+		var yearTotal float64
+		for _, m := range req.Months {
+			bd := s.CalculateMonthly(o, m)
+
+			// Per-period energy terms for chart visualisation
+			var peakTerm, midTerm, valleyTerm float64
+			if o.EnergyPriceFlat {
+				total := m.PeakKWh + m.MidKWh + m.ValleyKWh
+				// Distribute proportionally to kWh when flat
+				if total > 0 {
+					peakTerm = round2(m.PeakKWh / total * bd.EnergyTerm)
+					midTerm = round2(m.MidKWh / total * bd.EnergyTerm)
+					valleyTerm = round2(bd.EnergyTerm - peakTerm - midTerm)
+				}
+			} else {
+				peakTerm = round2(m.PeakKWh * o.EnergyPricePeakKWh)
+				midTerm = round2(m.MidKWh * o.EnergyPriceMidKWh)
+				valleyTerm = round2(m.ValleyKWh * o.EnergyPriceValleyKWh)
+			}
+
+			months = append(months, domain.MonthlyBillBreakdown{
+				BillBreakdown:    bd,
+				Month:            m.Month,
+				Year:             m.Year,
+				EnergyPeakTerm:   peakTerm,
+				EnergyMidTerm:    midTerm,
+				EnergyValleyTerm: valleyTerm,
+			})
+			yearTotal += bd.Total
+		}
+		results = append(results, domain.AnnualOfferResult{
+			OfferID:   o.ID,
+			OfferName: o.Name,
+			Provider:  o.Provider,
+			Months:    months,
+			YearTotal: round2(yearTotal),
+		})
+	}
+	return domain.AnnualSimulationResponse{Offers: results}
+}
+
 // effectiveEnergyPrice returns the representative energy price for simulation.
 // When flat, all periods share the same price (EnergyPricePeakKWh).
 // When tiered, the average of the three periods is used as an unweighted estimate

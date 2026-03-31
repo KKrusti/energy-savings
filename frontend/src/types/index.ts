@@ -67,3 +67,44 @@ export interface BillBreakdown {
 export interface SimulationResponse {
   breakdowns: BillBreakdown[]
 }
+
+// Annual simulation types
+
+export interface MonthlyConsumption {
+  month: number       // 1-12
+  year: number
+  peak_kwh: number
+  mid_kwh: number
+  valley_kwh: number
+  power_peak_kw: number    // contracted power — peak period (kW)
+  power_valley_kw: number  // contracted power — valley period (kW)
+  surplus_kwh: number      // solar surplus injected to grid (kWh)
+}
+
+export interface AnnualSimulationRequest {
+  months: MonthlyConsumption[]
+}
+
+export interface MonthlyBillBreakdown extends BillBreakdown {
+  month: number
+  year: number
+  energy_peak_term: number
+  energy_mid_term: number
+  energy_valley_term: number
+}
+
+export interface AnnualOfferResult {
+  offer_id: number
+  offer_name: string
+  provider: string
+  months: MonthlyBillBreakdown[]
+  year_total: number
+}
+
+export interface AnnualSimulationResponse {
+  offers: AnnualOfferResult[]
+}
+
+export interface ConsumptionHistoryResponse {
+  months: MonthlyConsumption[]
+}

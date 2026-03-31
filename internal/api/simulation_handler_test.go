@@ -31,6 +31,21 @@ func (s *stubSimOfferService) GetOffer(_ context.Context, id int64) (domain.Offe
 	return domain.Offer{}, service.ErrOfferNotFound
 }
 
+func buildMonths(n int) []domain.MonthlyConsumption {
+	months := make([]domain.MonthlyConsumption, n)
+	for i := range months {
+		months[i] = domain.MonthlyConsumption{
+			Month:   i + 1,
+			Year:    2025,
+			PeakKWh: 100, MidKWh: 100, ValleyKWh: 100,
+			PowerPeakKW:   3.45,
+			PowerValleyKW: 3.45,
+			SurplusKWh:    0,
+		}
+	}
+	return months
+}
+
 func TestSimulationHandler_Simulate(t *testing.T) {
 	calc := service.NewCalculatorService()
 	offers := []domain.Offer{
@@ -89,6 +104,109 @@ func TestSimulationHandler_Simulate(t *testing.T) {
 				var resp domain.SimulationResponse
 				require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 				assert.Len(t, resp.Breakdowns, tc.wantLen)
+			}
+		})
+	}
+}
+
+func TestSimulationHandler_SimulateAnnual(t *testing.T) {
+	calc := service.NewCalculatorService()
+	offers := []domain.Offer{
+		{ID: 1, Name: "Offer A", Provider: "X", EnergyPriceFlat: true, EnergyPricePeakKWh: 0.15, PowerTermSamePrice: true, PowerTermPricePeak: 38.04},
+		{ID: 2, Name: "Offer B", Provider: "Y", EnergyPriceFlat: true, EnergyPricePeakKWh: 0.12, PowerTermSamePrice: true, PowerTermPricePeak: 40.0},
+	}
+	offerSvc := &stubSimOfferService{offers: offers}
+
+	tests := []struct {
+		name       string
+		body       any
+		wantStatus int
+		wantOffers int
+		wantMonths int
+	}{
+		{
+			name:       "valid 12-month request",
+			body:       domain.AnnualSimulationRequest{Months: buildMonths(12)},
+			wantStatus: http.StatusOK,
+			wantOffers: 2,
+			wantMonths: 12,
+		},
+		{
+			name:       "valid partial year (3 months)",
+			body:       domain.AnnualSimulationRequest{Months: buildMonths(3)},
+			wantStatus: http.StatusOK,
+			wantOffers: 2,
+			wantMonths: 3,
+		},
+		{
+			name:       "empty months",
+			body:       domain.AnnualSimulationRequest{Months: []domain.MonthlyConsumption{}},
+			wantStatus: http.StatusUnprocessableEntity,
+		},
+		{
+			name:       "more than 12 months rejected",
+			body:       domain.AnnualSimulationRequest{Months: buildMonths(13)},
+			wantStatus: http.StatusUnprocessableEntity,
+		},
+		{
+			name: "invalid month value",
+			body: domain.AnnualSimulationRequest{Months: []domain.MonthlyConsumption{
+				{Month: 13, Year: 2025, PeakKWh: 100, MidKWh: 100, ValleyKWh: 100, PowerPeakKW: 3.45, PowerValleyKW: 3.45},
+			}},
+			wantStatus: http.StatusUnprocessableEntity,
+		},
+		{
+			name: "surplus_kwh < 0 rejected",
+			body: domain.AnnualSimulationRequest{Months: []domain.MonthlyConsumption{
+				{Month: 1, Year: 2025, PeakKWh: 100, MidKWh: 100, ValleyKWh: 100, PowerPeakKW: 3.45, PowerValleyKW: 3.45, SurplusKWh: -1},
+			}},
+			wantStatus: http.StatusUnprocessableEntity,
+		},
+		{
+			name: "negative consumption rejected",
+			body: domain.AnnualSimulationRequest{Months: []domain.MonthlyConsumption{
+				{Month: 1, Year: 2025, PeakKWh: -10, MidKWh: 100, ValleyKWh: 100, PowerPeakKW: 3.45, PowerValleyKW: 3.45},
+			}},
+			wantStatus: http.StatusUnprocessableEntity,
+		},
+		{
+			name: "power_peak_kw <= 0 rejected",
+			body: domain.AnnualSimulationRequest{Months: []domain.MonthlyConsumption{
+				{Month: 1, Year: 2025, PeakKWh: 100, MidKWh: 100, ValleyKWh: 100, PowerPeakKW: 0, PowerValleyKW: 3.45},
+			}},
+			wantStatus: http.StatusUnprocessableEntity,
+		},
+		{
+			name: "power_valley_kw <= 0 rejected",
+			body: domain.AnnualSimulationRequest{Months: []domain.MonthlyConsumption{
+				{Month: 1, Year: 2025, PeakKWh: 100, MidKWh: 100, ValleyKWh: 100, PowerPeakKW: 3.45, PowerValleyKW: 0},
+			}},
+			wantStatus: http.StatusUnprocessableEntity,
+		},
+		{
+			name:       "bad JSON body",
+			body:       "not-json",
+			wantStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			h := api.NewSimulationHandler(offerSvc, calc)
+			body, _ := json.Marshal(tc.body)
+			req := httptest.NewRequest(http.MethodPost, "/api/simulate/annual", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			h.SimulateAnnual(w, req)
+
+			assert.Equal(t, tc.wantStatus, w.Code)
+			if tc.wantOffers > 0 {
+				var resp domain.AnnualSimulationResponse
+				require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+				assert.Len(t, resp.Offers, tc.wantOffers)
+				for _, o := range resp.Offers {
+					assert.Len(t, o.Months, tc.wantMonths)
+				}
 			}
 		})
 	}

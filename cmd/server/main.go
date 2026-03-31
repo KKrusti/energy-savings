@@ -30,14 +30,16 @@ func main() {
 	defer db.Close()
 
 	offerRepo := repository.NewOfferRepository(db)
+	consumptionRepo := repository.NewConsumptionRepository(db)
 	offerSvc := service.NewOfferService(offerRepo)
 	calcSvc := service.NewCalculatorService()
 
 	offerHandler := api.NewOfferHandler(offerSvc)
 	simHandler := api.NewSimulationHandler(offerSvc, calcSvc)
+	consumptionHandler := api.NewConsumptionHandler(consumptionRepo)
 
 	allowedOrigins := envOrDefault("CORS_ALLOWED_ORIGINS", "")
-	router := api.NewRouter(offerHandler, simHandler, allowedOrigins)
+	router := api.NewRouter(offerHandler, simHandler, consumptionHandler, allowedOrigins)
 
 	srv := &http.Server{
 		Addr:         addr,

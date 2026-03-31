@@ -13,7 +13,7 @@ import (
 // NewRouter creates and returns the main application router.
 // allowedOrigins is a comma-separated list of origins permitted by CORS
 // (e.g. "http://localhost:5173,https://app.example.com").
-func NewRouter(offerH *OfferHandler, simH *SimulationHandler, allowedOrigins string) http.Handler {
+func NewRouter(offerH *OfferHandler, simH *SimulationHandler, consumptionH *ConsumptionHandler, allowedOrigins string) http.Handler {
 	origins := parseOrigins(allowedOrigins)
 
 	r := chi.NewRouter()
@@ -41,6 +41,11 @@ func NewRouter(offerH *OfferHandler, simH *SimulationHandler, allowedOrigins str
 			})
 		})
 		r.Post("/simulate", simH.Simulate)
+		r.Post("/simulate/annual", simH.SimulateAnnual)
+		r.Route("/consumption", func(r chi.Router) {
+			r.Get("/history", consumptionH.GetHistory)
+			r.Put("/history", consumptionH.SaveHistory)
+		})
 	})
 
 	return r
