@@ -37,6 +37,7 @@ func (m *mockOfferRepo) Create(_ context.Context, input domain.CreateOfferInput)
 		PermanenceMonths:     input.PermanenceMonths,
 		IsGreenEnergy:        input.IsGreenEnergy,
 		Notes:                input.Notes,
+		IsCurrent:            input.IsCurrent,
 	}
 	m.offers[m.nextID] = o
 	m.nextID++
@@ -66,6 +67,7 @@ func (m *mockOfferRepo) Update(_ context.Context, id int64, input domain.UpdateO
 		ID: id, Name: input.Name, Provider: input.Provider,
 		EnergyPriceFlat: input.EnergyPriceFlat, EnergyPricePeakKWh: input.EnergyPricePeakKWh,
 		PowerTermSamePrice: input.PowerTermSamePrice, PowerTermPricePeak: input.PowerTermPricePeak,
+		IsCurrent: input.IsCurrent,
 	}
 	m.offers[id] = o
 	return o, nil
@@ -76,6 +78,17 @@ func (m *mockOfferRepo) Delete(_ context.Context, id int64) error {
 		return repository.ErrNotFound
 	}
 	delete(m.offers, id)
+	return nil
+}
+
+// UnsetCurrent clears IsCurrent on all offers in the mock store.
+func (m *mockOfferRepo) UnsetCurrent(_ context.Context) error {
+	for id, o := range m.offers {
+		if o.IsCurrent {
+			o.IsCurrent = false
+			m.offers[id] = o
+		}
+	}
 	return nil
 }
 
@@ -179,4 +192,83 @@ func TestOfferService_DeleteOffer(t *testing.T) {
 	created, _ := svc.CreateOffer(ctx, validInput())
 	assert.NoError(t, svc.DeleteOffer(ctx, created.ID))
 	assert.ErrorIs(t, svc.DeleteOffer(ctx, created.ID), service.ErrOfferNotFound)
+}
+
+func TestOfferService_IsCurrent_CreateTransfersFlag(t *testing.T) {
+	svc := service.NewOfferService(newMockRepo())
+	ctx := context.Background()
+
+	// Create first offer marked as current.
+	inp1 := validInput()
+	inp1.IsCurrent = true
+	first, err := svc.CreateOffer(ctx, inp1)
+	require.NoError(t, err)
+	assert.True(t, first.IsCurrent)
+
+	// Create second offer also marked as current — first must lose the flag.
+	inp2 := validInput()
+	inp2.Name = "Other Offer"
+	inp2.IsCurrent = true
+	second, err := svc.CreateOffer(ctx, inp2)
+	require.NoError(t, err)
+	assert.True(t, second.IsCurrent)
+
+	// The first offer should no longer be current.
+	got, err := svc.GetOffer(ctx, first.ID)
+	require.NoError(t, err)
+	assert.False(t, got.IsCurrent, "first offer should no longer be current after a new current offer is created")
+}
+
+func TestOfferService_IsCurrent_UpdateTransfersFlag(t *testing.T) {
+	svc := service.NewOfferService(newMockRepo())
+	ctx := context.Background()
+
+	// Create two offers; mark the first as current.
+	inp1 := validInput()
+	inp1.IsCurrent = true
+	first, err := svc.CreateOffer(ctx, inp1)
+	require.NoError(t, err)
+
+	inp2 := validInput()
+	inp2.Name = "Second"
+	second, err := svc.CreateOffer(ctx, inp2)
+	require.NoError(t, err)
+	assert.False(t, second.IsCurrent)
+
+	// Update second offer to be current — first must lose the flag.
+	updInput := domain.UpdateOfferInput{
+		Name: second.Name, Provider: second.Provider,
+		EnergyPriceFlat: true, EnergyPricePeakKWh: 0.12,
+		PowerTermSamePrice: true, PowerTermPricePeak: 38.04,
+		IsCurrent: true,
+	}
+	updated, err := svc.UpdateOffer(ctx, second.ID, updInput)
+	require.NoError(t, err)
+	assert.True(t, updated.IsCurrent)
+
+	got, err := svc.GetOffer(ctx, first.ID)
+	require.NoError(t, err)
+	assert.False(t, got.IsCurrent, "first offer should no longer be current after update")
+}
+
+func TestOfferService_IsCurrent_FalseDoesNotUnset(t *testing.T) {
+	svc := service.NewOfferService(newMockRepo())
+	ctx := context.Background()
+
+	// Create offer marked as current.
+	inp := validInput()
+	inp.IsCurrent = true
+	current, err := svc.CreateOffer(ctx, inp)
+	require.NoError(t, err)
+
+	// Create another offer NOT marked as current — current offer must remain current.
+	inp2 := validInput()
+	inp2.Name = "Other"
+	inp2.IsCurrent = false
+	_, err = svc.CreateOffer(ctx, inp2)
+	require.NoError(t, err)
+
+	got, err := svc.GetOffer(ctx, current.ID)
+	require.NoError(t, err)
+	assert.True(t, got.IsCurrent, "current offer should remain current when new offer is not marked current")
 }

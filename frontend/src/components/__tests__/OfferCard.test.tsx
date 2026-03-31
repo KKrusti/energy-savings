@@ -20,6 +20,7 @@ const baseOffer: Offer = {
   permanence_months: 0,
   is_green_energy: false,
   notes: '',
+  is_current: false,
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-01T00:00:00Z',
 }
@@ -105,5 +106,15 @@ describe('OfferCard', () => {
     render(<OfferCard offer={baseOffer} onEdit={vi.fn()} onDelete={onDelete} />)
     await userEvent.click(screen.getByRole('button', { name: /eliminar/i }))
     expect(onDelete).toHaveBeenCalledWith(1)
+  })
+
+  it('shows "Tarifa actual" badge when is_current is true', () => {
+    render(<OfferCard offer={{ ...baseOffer, is_current: true }} onEdit={vi.fn()} onDelete={vi.fn()} />)
+    expect(screen.getByLabelText('Tarifa actual')).toBeInTheDocument()
+  })
+
+  it('does not show "Tarifa actual" badge when is_current is false', () => {
+    render(<OfferCard offer={{ ...baseOffer, is_current: false }} onEdit={vi.fn()} onDelete={vi.fn()} />)
+    expect(screen.queryByLabelText('Tarifa actual')).not.toBeInTheDocument()
   })
 })

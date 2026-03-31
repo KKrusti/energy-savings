@@ -116,6 +116,14 @@ var migrations = []migration{
 				END`,
 		},
 	},
+	{
+		version: 4,
+		stmts: []string{
+			// Mark one offer as the user's current tariff for comparison purposes.
+			// Uniqueness is enforced at the service layer (not DB) for SQLite compatibility.
+			`ALTER TABLE offers ADD COLUMN is_current INTEGER NOT NULL DEFAULT 0`,
+		},
+	},
 }
 
 func migrate(ctx context.Context, db *sql.DB) error {

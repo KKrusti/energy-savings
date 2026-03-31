@@ -19,6 +19,8 @@ export interface Offer {
   // Other
   is_green_energy: boolean
   notes: string
+  // Current tariff flag — only one offer can have this set to true at a time
+  is_current: boolean
   created_at: string
   updated_at: string
 }
@@ -38,6 +40,8 @@ export interface CreateOfferInput {
   permanence_months: number
   is_green_energy: boolean
   notes: string
+  // Setting this to true will unset any previously current offer (handled by the backend).
+  is_current: boolean
 }
 
 // UpdateOfferInput mirrors CreateOfferInput — all fields are required on update (full replacement).

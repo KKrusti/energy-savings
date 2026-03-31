@@ -23,6 +23,7 @@ type offerRepo interface {
 	List(ctx context.Context) ([]domain.Offer, error)
 	Update(ctx context.Context, id int64, input domain.UpdateOfferInput) (domain.Offer, error)
 	Delete(ctx context.Context, id int64) error
+	UnsetCurrent(ctx context.Context) error
 }
 
 // OfferService orchestrates offer operations.
@@ -36,9 +37,15 @@ func NewOfferService(repo offerRepo) *OfferService {
 }
 
 // CreateOffer validates and creates a new offer.
+// If input.IsCurrent is true, any previously current offer is unset first.
 func (s *OfferService) CreateOffer(ctx context.Context, input domain.CreateOfferInput) (domain.Offer, error) {
 	if err := validateCreateInput(input); err != nil {
 		return domain.Offer{}, fmt.Errorf("%w: %s", ErrInvalidInput, err)
+	}
+	if input.IsCurrent {
+		if err := s.repo.UnsetCurrent(ctx); err != nil {
+			return domain.Offer{}, fmt.Errorf("unset current offer: %w", err)
+		}
 	}
 	return s.repo.Create(ctx, input)
 }
@@ -58,9 +65,15 @@ func (s *OfferService) ListOffers(ctx context.Context) ([]domain.Offer, error) {
 }
 
 // UpdateOffer validates and updates an existing offer.
+// If input.IsCurrent is true, any previously current offer (other than this one) is unset first.
 func (s *OfferService) UpdateOffer(ctx context.Context, id int64, input domain.UpdateOfferInput) (domain.Offer, error) {
 	if err := validateUpdateInput(input); err != nil {
 		return domain.Offer{}, fmt.Errorf("%w: %s", ErrInvalidInput, err)
+	}
+	if input.IsCurrent {
+		if err := s.repo.UnsetCurrent(ctx); err != nil {
+			return domain.Offer{}, fmt.Errorf("unset current offer: %w", err)
+		}
 	}
 	offer, err := s.repo.Update(ctx, id, input)
 	if errors.Is(err, repository.ErrNotFound) {

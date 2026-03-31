@@ -33,6 +33,7 @@ func (s *stubOfferService) CreateOffer(_ context.Context, input domain.CreateOff
 		ID: s.nextID, Name: input.Name, Provider: input.Provider,
 		EnergyPriceFlat: input.EnergyPriceFlat, EnergyPricePeakKWh: input.EnergyPricePeakKWh,
 		PowerTermSamePrice: input.PowerTermSamePrice, PowerTermPricePeak: input.PowerTermPricePeak,
+		IsCurrent: input.IsCurrent,
 	}
 	s.offers[s.nextID] = o
 	s.nextID++
@@ -58,7 +59,7 @@ func (s *stubOfferService) UpdateOffer(_ context.Context, id int64, input domain
 	if _, ok := s.offers[id]; !ok {
 		return domain.Offer{}, service.ErrOfferNotFound
 	}
-	o := domain.Offer{ID: id, Name: input.Name, Provider: input.Provider}
+	o := domain.Offer{ID: id, Name: input.Name, Provider: input.Provider, IsCurrent: input.IsCurrent}
 	s.offers[id] = o
 	return o, nil
 }
@@ -133,4 +134,27 @@ func TestOfferHandler_Create(t *testing.T) {
 			assert.Equal(t, tc.wantStatus, w.Code)
 		})
 	}
+}
+
+func TestOfferHandler_Create_IsCurrentPropagated(t *testing.T) {
+	stub := newStubOfferService()
+	h := api.NewOfferHandler(stub)
+
+	body := domain.CreateOfferInput{
+		Name: "Tarifa Actual", Provider: "Endesa",
+		EnergyPriceFlat: true, EnergyPricePeakKWh: 0.15,
+		PowerTermSamePrice: true, PowerTermPricePeak: 38.04,
+		IsCurrent: true,
+	}
+	bodyBytes, _ := json.Marshal(body)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/offers", bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.Create(w, req)
+
+	require.Equal(t, http.StatusCreated, w.Code)
+	var offer domain.Offer
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&offer))
+	assert.True(t, offer.IsCurrent, "is_current must be true in the response when set in the input")
 }

@@ -30,6 +30,10 @@ type Offer struct {
 	IsGreenEnergy bool   `json:"is_green_energy"`
 	Notes         string `json:"notes"`
 
+	// IsCurrent marks this offer as the user's active tariff used as a comparison baseline.
+	// Only one offer can be current at a time; the service layer enforces this invariant.
+	IsCurrent bool `json:"is_current"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -55,6 +59,10 @@ type CreateOfferInput struct {
 
 	IsGreenEnergy bool   `json:"is_green_energy"`
 	Notes         string `json:"notes"`
+
+	// IsCurrent marks this offer as the user's active tariff.
+	// Setting this to true will unset any previously current offer.
+	IsCurrent bool `json:"is_current"`
 }
 
 // UpdateOfferInput contains the fields that can be updated on an offer.
@@ -78,4 +86,8 @@ type UpdateOfferInput struct {
 
 	IsGreenEnergy bool   `json:"is_green_energy"`
 	Notes         string `json:"notes"`
+
+	// IsCurrent marks this offer as the user's active tariff.
+	// Setting this to true will unset any previously current offer.
+	IsCurrent bool `json:"is_current"`
 }

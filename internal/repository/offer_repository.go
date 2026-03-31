@@ -29,20 +29,20 @@ const selectCols = `
 	power_term_same_price, power_term_price_peak, power_term_price_valley,
 	surplus_compensation,
 	has_permanence, permanence_months,
-	is_green_energy, notes, created_at, updated_at`
+	is_green_energy, notes, is_current, created_at, updated_at`
 
 func scanOffer(row interface {
 	Scan(...any) error
 }) (domain.Offer, error) {
 	var o domain.Offer
-	var energyFlat, powerSame, greenInt, permanenceInt int
+	var energyFlat, powerSame, greenInt, permanenceInt, isCurrentInt int
 	err := row.Scan(
 		&o.ID, &o.Name, &o.Provider,
 		&energyFlat, &o.EnergyPricePeakKWh, &o.EnergyPriceMidKWh, &o.EnergyPriceValleyKWh,
 		&powerSame, &o.PowerTermPricePeak, &o.PowerTermPriceValley,
 		&o.SurplusCompensation,
 		&permanenceInt, &o.PermanenceMonths,
-		&greenInt, &o.Notes, &o.CreatedAt, &o.UpdatedAt,
+		&greenInt, &o.Notes, &isCurrentInt, &o.CreatedAt, &o.UpdatedAt,
 	)
 	if err != nil {
 		return domain.Offer{}, err
@@ -51,10 +51,12 @@ func scanOffer(row interface {
 	o.PowerTermSamePrice = powerSame != 0
 	o.IsGreenEnergy = greenInt != 0
 	o.HasPermanence = permanenceInt != 0
+	o.IsCurrent = isCurrentInt != 0
 	return o, nil
 }
 
 // Create inserts a new offer and returns it with its generated ID and timestamps.
+// The caller is responsible for clearing is_current on other rows before calling this method.
 func (r *OfferRepository) Create(ctx context.Context, input domain.CreateOfferInput) (domain.Offer, error) {
 	const q = `
 		INSERT INTO offers (
@@ -63,8 +65,8 @@ func (r *OfferRepository) Create(ctx context.Context, input domain.CreateOfferIn
 			power_term_same_price, power_term_price_peak, power_term_price_valley,
 			surplus_compensation,
 			has_permanence, permanence_months,
-			is_green_energy, notes
-		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+			is_green_energy, notes, is_current
+		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		RETURNING ` + selectCols
 
 	row := r.db.QueryRowContext(ctx, q,
@@ -73,7 +75,7 @@ func (r *OfferRepository) Create(ctx context.Context, input domain.CreateOfferIn
 		boolToInt(input.PowerTermSamePrice), input.PowerTermPricePeak, input.PowerTermPriceValley,
 		input.SurplusCompensation,
 		boolToInt(input.HasPermanence), input.PermanenceMonths,
-		boolToInt(input.IsGreenEnergy), input.Notes,
+		boolToInt(input.IsGreenEnergy), input.Notes, boolToInt(input.IsCurrent),
 	)
 	o, err := scanOffer(row)
 	if err != nil {
@@ -116,6 +118,7 @@ func (r *OfferRepository) List(ctx context.Context) ([]domain.Offer, error) {
 }
 
 // Update modifies an existing offer. Returns ErrNotFound if it does not exist.
+// The caller is responsible for clearing is_current on other rows before calling this method.
 func (r *OfferRepository) Update(ctx context.Context, id int64, input domain.UpdateOfferInput) (domain.Offer, error) {
 	const q = `
 		UPDATE offers SET
@@ -124,7 +127,7 @@ func (r *OfferRepository) Update(ctx context.Context, id int64, input domain.Upd
 			power_term_same_price=?, power_term_price_peak=?, power_term_price_valley=?,
 			surplus_compensation=?,
 			has_permanence=?, permanence_months=?,
-			is_green_energy=?, notes=?
+			is_green_energy=?, notes=?, is_current=?
 		WHERE id=?`
 
 	res, err := r.db.ExecContext(ctx, q,
@@ -133,7 +136,7 @@ func (r *OfferRepository) Update(ctx context.Context, id int64, input domain.Upd
 		boolToInt(input.PowerTermSamePrice), input.PowerTermPricePeak, input.PowerTermPriceValley,
 		input.SurplusCompensation,
 		boolToInt(input.HasPermanence), input.PermanenceMonths,
-		boolToInt(input.IsGreenEnergy), input.Notes,
+		boolToInt(input.IsGreenEnergy), input.Notes, boolToInt(input.IsCurrent),
 		id,
 	)
 	if err != nil {
@@ -155,6 +158,16 @@ func (r *OfferRepository) Delete(ctx context.Context, id int64) error {
 	n, _ := res.RowsAffected()
 	if n == 0 {
 		return ErrNotFound
+	}
+	return nil
+}
+
+// UnsetCurrent clears the is_current flag on all offers.
+// This should be called within the same logical operation before marking a new current offer.
+func (r *OfferRepository) UnsetCurrent(ctx context.Context) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE offers SET is_current = 0 WHERE is_current = 1`)
+	if err != nil {
+		return fmt.Errorf("unset current offer: %w", err)
 	}
 	return nil
 }

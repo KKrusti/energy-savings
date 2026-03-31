@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Plus } from 'lucide-react'
 import { OfferCard } from '@/components/OfferCard'
 import { OfferForm } from '@/components/OfferForm'
 import { useOffers, useCreateOffer, useUpdateOffer, useDeleteOffer } from '@/hooks/useOffers'
+import { useLastAnnualSimulation } from '@/hooks/useLastAnnualSimulation'
+import type { AnnualSaving } from '@/components/OfferCard'
 import type { CreateOfferInput, Offer } from '@/types'
 
 export function OffersPage() {
@@ -13,6 +15,41 @@ export function OffersPage() {
   const createMutation = useCreateOffer()
   const updateMutation = useUpdateOffer()
   const deleteMutation = useDeleteOffer()
+  const { data: annualSimulation } = useLastAnnualSimulation()
+
+  // Build a map of offer_id -> AnnualSaving relative to the current tariff's year_total.
+  // Also compute the podium rank (1=gold, 2=silver, 3=bronze) for offers cheaper than current.
+  const { annualSavingMap, podiumRankMap } = useMemo(() => {
+    const savingMap = new Map<number, AnnualSaving>()
+    const rankMap = new Map<number, 1 | 2 | 3>()
+    if (!annualSimulation) return { annualSavingMap: savingMap, podiumRankMap: rankMap }
+
+    const currentOffer = offers.find((o) => o.is_current)
+    if (!currentOffer) return { annualSavingMap: savingMap, podiumRankMap: rankMap }
+
+    const currentResult = annualSimulation.offers.find((r) => r.offer_id === currentOffer.id)
+    if (!currentResult || currentResult.year_total === 0) return { annualSavingMap: savingMap, podiumRankMap: rankMap }
+
+    const currentYearTotal = currentResult.year_total
+    const cheaper: Array<{ offer_id: number; year_total: number }> = []
+
+    for (const result of annualSimulation.offers) {
+      if (result.offer_id === currentOffer.id) continue
+      const diff = result.year_total - currentYearTotal
+      savingMap.set(result.offer_id, {
+        euros: diff,
+        percent: (diff / currentYearTotal) * 100,
+      })
+      if (diff < 0) cheaper.push({ offer_id: result.offer_id, year_total: result.year_total })
+    }
+
+    cheaper.sort((a, b) => a.year_total - b.year_total)
+    cheaper.slice(0, 3).forEach(({ offer_id }, i) => {
+      rankMap.set(offer_id, (i + 1) as 1 | 2 | 3)
+    })
+
+    return { annualSavingMap: savingMap, podiumRankMap: rankMap }
+  }, [annualSimulation, offers])
 
   const handleSubmit = async (data: CreateOfferInput) => {
     if (editingOffer) {
@@ -46,8 +83,8 @@ export function OffersPage() {
     <section>
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-[#F8FAFC]">Ofertas tarifarias</h1>
-          <p className="text-slate-400 text-sm mt-1">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-[#F8FAFC]">Ofertas tarifarias</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
             Registra las tarifas que encuentres para compararlas
           </p>
         </div>
@@ -70,13 +107,13 @@ export function OffersPage() {
       )}
 
       {error && (
-        <div role="alert" className="rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-red-400 text-sm">
+        <div role="alert" className="rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-red-600 dark:text-red-400 text-sm">
           Error al cargar las ofertas. Comprueba que el servidor esté activo.
         </div>
       )}
 
       {!isLoading && !error && offers.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 text-slate-500">
+        <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
           <p className="text-base mb-2">No hay ofertas registradas todavía</p>
           <p className="text-sm">Pulsa «Nueva oferta» para añadir la primera</p>
         </div>
@@ -90,6 +127,8 @@ export function OffersPage() {
                 offer={offer}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                annualSaving={annualSavingMap.get(offer.id)}
+                podiumRank={podiumRankMap.get(offer.id)}
               />
             </li>
           ))}

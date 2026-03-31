@@ -27,6 +27,7 @@ const defaultValues: FormValues = {
   permanence_months: 0,
   is_green_energy: false,
   notes: '',
+  is_current: false,
 }
 
 export function OfferForm({ offer, onSubmit, onCancel, isLoading }: OfferFormProps) {
@@ -53,6 +54,7 @@ export function OfferForm({ offer, onSubmit, onCancel, isLoading }: OfferFormPro
       permanence_months: offer.permanence_months,
       is_green_energy: offer.is_green_energy,
       notes: offer.notes,
+      is_current: offer.is_current,
     } : defaultValues)
   }, [offer, reset])
 
@@ -65,17 +67,20 @@ export function OfferForm({ offer, onSubmit, onCancel, isLoading }: OfferFormPro
     >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onCancel} aria-hidden="true" />
 
-      <div className="relative w-full max-w-xl rounded-2xl border border-white/10 bg-[#0F172A]/95
+      <div className="relative w-full max-w-xl rounded-2xl border
+        border-slate-200 dark:border-white/10
+        bg-white dark:bg-[#0F172A]/95
         backdrop-blur-glass shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
 
         <div className="flex items-center justify-between mb-6">
-          <h2 id="offer-form-title" className="text-lg font-semibold text-[#F8FAFC]">
+          <h2 id="offer-form-title" className="text-lg font-semibold text-slate-900 dark:text-[#F8FAFC]">
             {offer ? 'Editar oferta' : 'Nueva oferta'}
           </h2>
           <button
             type="button"
             onClick={onCancel}
-            className="p-2 rounded-xl text-slate-400 hover:text-[#F8FAFC] hover:bg-white/5
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-[#F8FAFC]
+              hover:bg-slate-100 dark:hover:bg-white/5
               transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/20"
             aria-label="Cerrar formulario"
           >
@@ -239,11 +244,11 @@ export function OfferForm({ offer, onSubmit, onCancel, isLoading }: OfferFormPro
               {/* Permanencia */}
               <div>
                 <fieldset>
-                  <legend className="block text-sm font-medium text-slate-300 mb-2">
+                  <legend className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">
                     Permanencia
                   </legend>
                   <div className="flex gap-6">
-                    <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-300">
+                    <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-600 dark:text-slate-300">
                       <input
                         type="radio"
                         name="permanence_radio"
@@ -256,7 +261,7 @@ export function OfferForm({ offer, onSubmit, onCancel, isLoading }: OfferFormPro
                       />
                       No
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-300">
+                    <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-600 dark:text-slate-300">
                       <input
                         type="radio"
                         name="permanence_radio"
@@ -296,6 +301,12 @@ export function OfferForm({ offer, onSubmit, onCancel, isLoading }: OfferFormPro
                 className={`${inputClass(false)} resize-none`}
               />
             </Field>
+
+            <CheckboxToggle
+              id="is_current"
+              label="Esta es mi tarifa actual (referencia de comparación)"
+              {...register('is_current')}
+            />
           </Section>
 
           {/* ── Acciones ── */}
@@ -303,8 +314,11 @@ export function OfferForm({ offer, onSubmit, onCancel, isLoading }: OfferFormPro
             <button
               type="button"
               onClick={onCancel}
-              className="px-4 py-2 rounded-xl text-sm font-medium text-slate-400
-                hover:text-[#F8FAFC] hover:bg-white/5 transition-colors duration-200 cursor-pointer
+              className="px-4 py-2 rounded-xl text-sm font-medium
+                text-slate-500 dark:text-slate-400
+                hover:text-slate-800 dark:hover:text-[#F8FAFC]
+                hover:bg-slate-100 dark:hover:bg-white/5
+                transition-colors duration-200 cursor-pointer
                 focus:outline-none focus:ring-2 focus:ring-white/20"
             >
               Cancelar
@@ -331,7 +345,8 @@ export function OfferForm({ offer, onSubmit, onCancel, isLoading }: OfferFormPro
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4 space-y-3">
+    <div className="rounded-xl border border-slate-200 dark:border-white/[0.08]
+      bg-slate-50 dark:bg-white/[0.03] p-4 space-y-3">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">{title}</h3>
       {children}
     </div>
@@ -345,12 +360,12 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-300 mb-1.5">
+      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
         {label}
         {required && <span className="text-primary ml-0.5" aria-hidden="true">*</span>}
       </label>
       {children}
-      {error && <p role="alert" className="text-xs text-red-400 mt-1">{error}</p>}
+      {error && <p role="alert" className="text-xs text-red-500 dark:text-red-400 mt-1">{error}</p>}
     </div>
   )
 }
@@ -364,10 +379,12 @@ const CheckboxToggle = forwardRef<
       ref={ref}
       id={id}
       type="checkbox"
-      className="w-4 h-4 rounded border-white/20 bg-white/5 accent-primary cursor-pointer"
+      className="w-4 h-4 rounded border-slate-300 dark:border-white/20
+        bg-white dark:bg-white/5 accent-primary cursor-pointer"
       {...props}
     />
-    <span className="text-sm text-slate-400 group-hover:text-slate-300 transition-colors duration-150">
+    <span className="text-sm text-slate-500 dark:text-slate-400
+      group-hover:text-slate-700 dark:group-hover:text-slate-300 transition-colors duration-150">
       {label}
     </span>
   </label>
@@ -375,11 +392,13 @@ const CheckboxToggle = forwardRef<
 CheckboxToggle.displayName = 'CheckboxToggle'
 
 function inputClass(hasError: boolean) {
-  return `w-full px-3 py-2 rounded-xl text-sm text-[#F8FAFC] bg-white/5 border
-    placeholder-slate-600
+  return `w-full px-3 py-2 rounded-xl text-sm
+    text-slate-900 dark:text-[#F8FAFC]
+    bg-white dark:bg-white/5
+    border placeholder-slate-400 dark:placeholder-slate-600
     focus:outline-none focus:ring-2 transition-colors duration-150
     ${hasError
       ? 'border-red-400/50 focus:ring-red-400/30'
-      : 'border-white/10 focus:border-primary/50 focus:ring-primary/20 hover:border-white/20'
+      : 'border-slate-300 dark:border-white/10 focus:border-primary/50 focus:ring-primary/20 hover:border-slate-400 dark:hover:border-white/20'
     }`
 }

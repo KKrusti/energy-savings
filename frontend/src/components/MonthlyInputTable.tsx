@@ -49,11 +49,11 @@ export function MonthlyInputTable({ value, onChange, onMonthClick }: Props) {
   )
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-white/10">
-      <table className="w-full text-sm text-[#F8FAFC]">
+    <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-white/10">
+      <table className="w-full text-sm text-slate-900 dark:text-[#F8FAFC]">
         <thead>
-          <tr className="border-b border-white/10 bg-white/5">
-            <th className="px-3 py-3 text-left font-medium text-slate-400">Mes</th>
+          <tr className="border-b border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5">
+            <th className="px-3 py-3 text-left font-medium text-slate-500 dark:text-slate-400">Mes</th>
             <th className="px-3 py-3 text-right font-medium text-amber-400">
               Punta<span className="block text-xs font-normal text-slate-500">kWh</span>
             </th>
@@ -78,9 +78,9 @@ export function MonthlyInputTable({ value, onChange, onMonthClick }: Props) {
           {value.months.map((m, i) => (
             <tr
               key={`${m.year}-${m.month}`}
-              className="border-b border-white/5 hover:bg-white/5 transition-colors"
+              className="border-b border-slate-100 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
             >
-              <td className="px-3 py-2 font-medium text-slate-300">
+              <td className="px-3 py-2 font-medium text-slate-600 dark:text-slate-300">
                 {onMonthClick ? (
                   <button
                     type="button"
@@ -169,7 +169,7 @@ function NumCell({ value, onChange, color, label, step = '0.1', min = '0', max }
         max={max}
         step={step}
         onChange={(e) => onChange(e.target.value)}
-        className={`w-20 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-right text-sm ${color}
+        className={`w-20 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 px-2 py-1 text-right text-sm ${color}
           focus:outline-none focus:ring-1 focus:ring-primary/60
           [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none`}
       />

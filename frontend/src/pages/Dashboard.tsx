@@ -1,19 +1,41 @@
-import { useState, useCallback, useEffect } from 'react'
-import { Tag, TrendingDown, Clock } from 'lucide-react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
+import { Tag, TrendingDown } from 'lucide-react'
 import { MonthlyInputTable, buildDefaultMonths } from '@/components/MonthlyInputTable'
 import { MonthlyDetailDrawer } from '@/components/MonthlyDetailDrawer'
 import { AnnualCostChart } from '@/components/AnnualCostChart'
 import { MonthlyBreakdownChart } from '@/components/MonthlyBreakdownChart'
 import { useOffers } from '@/hooks/useOffers'
 import { useAnnualSimulation } from '@/hooks/useAnnualSimulation'
+import { useLastAnnualSimulation } from '@/hooks/useLastAnnualSimulation'
 import { useConsumptionHistory, useSaveConsumptionHistory } from '@/hooks/useConsumptionHistory'
 import type { AnnualSimulationRequest, AnnualOfferResult } from '@/types'
 
 export function DashboardPage() {
   const { data: offers = [] } = useOffers()
   const annualSimulation = useAnnualSimulation()
+  const { data: lastSimulation } = useLastAnnualSimulation()
   const { data: savedHistory, isSuccess: historyLoaded } = useConsumptionHistory()
   const saveHistory = useSaveConsumptionHistory()
+
+  // Top 3 offers cheaper than the current tariff, sorted by year_total ascending.
+  const top3 = useMemo(() => {
+    if (!lastSimulation) return []
+    const currentOffer = offers.find((o) => o.is_current)
+    if (!currentOffer) return []
+    const currentResult = lastSimulation.offers.find((r) => r.offer_id === currentOffer.id)
+    if (!currentResult) return []
+    const currentYearTotal = currentResult.year_total
+    return lastSimulation.offers
+      .filter((r) => r.offer_id !== currentOffer.id && r.year_total < currentYearTotal)
+      .sort((a, b) => a.year_total - b.year_total)
+      .slice(0, 3)
+      .map((r) => ({
+        offerName: r.offer_name,
+        provider: r.provider,
+        savings: currentYearTotal - r.year_total,
+        savingsPct: ((currentYearTotal - r.year_total) / currentYearTotal) * 100,
+      }))
+  }, [lastSimulation, offers])
 
   const [annualReq, setAnnualReq] = useState<AnnualSimulationRequest>(() => ({
     months: buildDefaultMonths(),
@@ -44,40 +66,49 @@ export function DashboardPage() {
     setDetailMonth({ month, year })
   }, [])
 
+  // Use the cached result as fallback so charts survive navigation away and back
+  const simulationData = annualSimulation.data ?? lastSimulation ?? undefined
+
   return (
     <section>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-[#F8FAFC]">Dashboard</h1>
-        <p className="text-slate-400 text-sm mt-1">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-[#F8FAFC]">Dashboard</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
           Simula tu factura eléctrica y compara todas las ofertas de un vistazo
         </p>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
         <KpiCard
           icon={<Tag className="w-5 h-5 text-primary" aria-hidden="true" />}
           label="Ofertas registradas"
           value={String(offers.length)}
         />
-        <KpiCard
-          icon={<Clock className="w-5 h-5 text-primary-light" aria-hidden="true" />}
-          label="Con permanencia"
-          value={String(offers.filter((o) => o.has_permanence).length)}
-        />
-        <KpiCard
-          icon={<TrendingDown className="w-5 h-5 text-cta" aria-hidden="true" />}
-          label="Precio mín. energía"
-          value={
-            offers.length > 0
-              ? `${Math.min(...offers.map((o) => o.energy_price_peak_kwh)).toFixed(4)} €/kWh`
-              : '—'
-          }
-        />
+        {Array.from({ length: 3 }, (_, i) => {
+          const entry = top3[i]
+          return entry ? (
+            <KpiCard
+              key={entry.offerName}
+              icon={<TrendingDown className="w-5 h-5 text-emerald-400" aria-hidden="true" />}
+              label={`#${i + 1} ${entry.offerName}`}
+              sublabel={entry.provider}
+              value={`−${entry.savings.toFixed(0)} €/año`}
+              badge={`−${entry.savingsPct.toFixed(1)}%`}
+            />
+          ) : (
+            <KpiCardEmpty
+              key={i}
+              rank={i + 1}
+              hasSimulation={!!lastSimulation}
+              hasCurrentOffer={offers.some((o) => o.is_current)}
+            />
+          )
+        })}
       </div>
 
       {offers.length === 0 && (
-        <div className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4 text-amber-400 text-sm mb-6">
+        <div className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4 text-amber-700 dark:text-amber-400 text-sm mb-6">
           Todavía no hay ofertas registradas. Ve a la sección{' '}
           <strong>Ofertas</strong> para añadir la primera.
         </div>
@@ -85,8 +116,8 @@ export function DashboardPage() {
 
       {/* Comparación anual */}
       <div className="mb-6">
-        <h2 className="text-lg font-semibold text-[#F8FAFC]">Comparación anual</h2>
-        <p className="text-slate-400 text-sm mt-1">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-[#F8FAFC]">Comparación anual</h2>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
           Introduce el consumo mensual por franjas y compara el coste con todas las ofertas a lo largo del año.
           Los datos se guardan automáticamente al calcular.
         </p>
@@ -96,7 +127,7 @@ export function DashboardPage() {
         <MonthlyInputTable
           value={annualReq}
           onChange={setAnnualReq}
-          onMonthClick={annualSimulation.data ? handleMonthClick : undefined}
+          onMonthClick={simulationData ? handleMonthClick : undefined}
         />
       </div>
 
@@ -110,23 +141,24 @@ export function DashboardPage() {
           {annualSimulation.isPending ? 'Calculando…' : 'Calcular año completo'}
         </button>
         {saveHistory.isSuccess && (
-          <span className="text-xs text-emerald-400">Datos guardados</span>
+          <span className="text-xs text-emerald-500 dark:text-emerald-400">Datos guardados</span>
         )}
         {saveHistory.isError && (
-          <span className="text-xs text-red-400">Error al guardar</span>
+          <span className="text-xs text-red-500 dark:text-red-400">Error al guardar</span>
         )}
       </div>
 
       {annualSimulation.isError && (
-        <div role="alert" className="rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-red-400 text-sm mb-6">
+        <div role="alert" className="rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-red-600 dark:text-red-400 text-sm mb-6">
           {annualSimulation.error instanceof Error ? annualSimulation.error.message : 'Error al calcular'}
         </div>
       )}
 
-      {annualSimulation.data && annualSimulation.data.offers.length > 0 && (
+      {simulationData && simulationData.offers.length > 0 && (
         <div className="space-y-6">
           <AnnualCostChart
-            data={annualSimulation.data}
+            data={simulationData}
+            offers={offers}
             onSelectOffer={handleSelectOffer}
             selectedOfferId={selectedOffer?.offer_id ?? null}
           />
@@ -142,7 +174,8 @@ export function DashboardPage() {
 
       <MonthlyDetailDrawer
         month={detailMonth}
-        data={annualSimulation.data}
+        data={simulationData}
+        offers={offers}
         onClose={() => setDetailMonth(null)}
       />
     </section>
@@ -152,19 +185,60 @@ export function DashboardPage() {
 function KpiCard({
   icon,
   label,
+  sublabel,
   value,
+  badge,
 }: {
   icon: React.ReactNode
   label: string
+  sublabel?: string
   value: string
+  badge?: string
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-glass p-5
+    <div className="rounded-2xl border border-slate-200 dark:border-white/10
+      bg-white/80 dark:bg-white/5 backdrop-blur-glass p-5
       flex items-center gap-4">
-      <div className="p-3 rounded-xl bg-white/5 shrink-0">{icon}</div>
-      <div>
-        <p className="text-xs text-slate-400">{label}</p>
-        <p className="text-xl font-bold text-[#F8FAFC] mt-0.5">{value}</p>
+      <div className="p-3 rounded-xl bg-slate-100 dark:bg-white/5 shrink-0">{icon}</div>
+      <div className="min-w-0">
+        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{label}</p>
+        {sublabel && <p className="text-[11px] text-slate-400 dark:text-slate-600 truncate">{sublabel}</p>}
+        <div className="flex items-baseline gap-2 mt-0.5 flex-wrap">
+          <p className="text-xl font-bold text-emerald-500 dark:text-emerald-400">{value}</p>
+          {badge && (
+            <span className="text-xs font-semibold text-emerald-500">{badge}</span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function KpiCardEmpty({
+  rank,
+  hasSimulation,
+  hasCurrentOffer,
+}: {
+  rank: number
+  hasSimulation: boolean
+  hasCurrentOffer: boolean
+}) {
+  const hint = !hasCurrentOffer
+    ? 'Marca una tarifa actual en Ofertas'
+    : !hasSimulation
+      ? 'Calcula el año completo para ver'
+      : `No hay ${rank === 1 ? 'ninguna oferta' : 'más ofertas'} más baratas`
+
+  return (
+    <div className="rounded-2xl border border-slate-200 dark:border-white/10
+      bg-white/80 dark:bg-white/5 backdrop-blur-glass p-5
+      flex items-center gap-4">
+      <div className="p-3 rounded-xl bg-slate-100 dark:bg-white/5 shrink-0">
+        <TrendingDown className="w-5 h-5 text-slate-400 dark:text-slate-600" aria-hidden="true" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs text-slate-500 truncate">#{rank} mejor oferta</p>
+        <p className="text-sm text-slate-400 dark:text-slate-600 mt-0.5 truncate">{hint}</p>
       </div>
     </div>
   )
