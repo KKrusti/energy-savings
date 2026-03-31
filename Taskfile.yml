@@ -1,0 +1,107 @@
+version: '3'
+
+tasks:
+  # ─── Desarrollo ────────────────────────────────────────────────────────────
+  dev:
+    desc: Arranca backend y frontend en paralelo
+    deps:
+      - task: dev:backend
+      - task: dev:frontend
+
+  dev:backend:
+    desc: Arranca el servidor Go en :8080
+    cmds:
+      - go run ./cmd/server
+    env:
+      ADDR: ":8080"
+      DB_PATH: "energy-savings.db"
+
+  dev:frontend:
+    desc: Arranca Vite dev server en :5173
+    dir: frontend
+    deps:
+      - task: npm:install
+    cmds:
+      - npm run dev
+
+  # ─── Tests ─────────────────────────────────────────────────────────────────
+  test:
+    desc: Ejecuta todos los tests (backend + frontend)
+    deps:
+      - task: test:backend
+      - task: test:frontend
+
+  test:backend:
+    desc: Tests Go (race detector requires CGO_ENABLED=1)
+    cmds:
+      - go test ./...
+
+  test:frontend:
+    desc: Tests Vitest
+    dir: frontend
+    deps:
+      - task: npm:install
+    cmds:
+      - npm run test
+
+  # ─── Calidad ───────────────────────────────────────────────────────────────
+  lint:
+    desc: Linting backend + frontend
+    deps:
+      - task: lint:backend
+      - task: lint:frontend
+
+  lint:backend:
+    desc: golangci-lint
+    cmds:
+      - golangci-lint run ./...
+
+  lint:frontend:
+    desc: ESLint
+    dir: frontend
+    deps:
+      - task: npm:install
+    cmds:
+      - npm run lint
+
+  # ─── Build ─────────────────────────────────────────────────────────────────
+  build:
+    desc: Compila backend + frontend
+    deps:
+      - task: build:backend
+      - task: build:frontend
+
+  build:backend:
+    desc: Compila binario Go en bin/server
+    cmds:
+      - go build -o bin/server ./cmd/server
+    generates:
+      - bin/server
+
+  build:frontend:
+    desc: Build de producción Vite
+    dir: frontend
+    deps:
+      - task: npm:install
+    cmds:
+      - npm run build
+    generates:
+      - dist/**/*
+
+  # ─── Setup ─────────────────────────────────────────────────────────────────
+  npm:install:
+    desc: Instala dependencias Node (solo si package.json cambió)
+    dir: frontend
+    cmds:
+      - npm install
+    sources:
+      - package.json
+    generates:
+      - node_modules/.package-lock.json
+
+  setup:
+    desc: Instala dependencias de Go y Node
+    cmds:
+      - go mod tidy
+    deps:
+      - task: npm:install
