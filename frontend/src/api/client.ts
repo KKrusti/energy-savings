@@ -1,6 +1,7 @@
 import type {
   Offer,
   CreateOfferInput,
+  UpdateOfferInput,
   SimulationRequest,
   SimulationResponse,
 } from '@/types'
@@ -26,7 +27,7 @@ export const offersApi = {
   get: (id: number) => request<Offer>(`/offers/${id}`),
   create: (data: CreateOfferInput) =>
     request<Offer>('/offers', { method: 'POST', body: JSON.stringify(data) }),
-  update: (id: number, data: Partial<CreateOfferInput>) =>
+  update: (id: number, data: UpdateOfferInput) =>
     request<Offer>(`/offers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id: number) => request<void>(`/offers/${id}`, { method: 'DELETE' }),
 }

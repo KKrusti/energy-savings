@@ -129,5 +129,12 @@ func (h *OfferHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func parseID(r *http.Request) (int64, error) {
-	return strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	if id <= 0 {
+		return 0, errors.New("id must be a positive integer")
+	}
+	return id, nil
 }

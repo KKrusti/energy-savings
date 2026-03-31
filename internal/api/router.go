@@ -3,6 +3,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -10,7 +11,11 @@ import (
 )
 
 // NewRouter creates and returns the main application router.
-func NewRouter(offerH *OfferHandler, simH *SimulationHandler) http.Handler {
+// allowedOrigins is a comma-separated list of origins permitted by CORS
+// (e.g. "http://localhost:5173,https://app.example.com").
+func NewRouter(offerH *OfferHandler, simH *SimulationHandler, allowedOrigins string) http.Handler {
+	origins := parseOrigins(allowedOrigins)
+
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -18,7 +23,7 @@ func NewRouter(offerH *OfferHandler, simH *SimulationHandler) http.Handler {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:5173", "http://localhost:3000"},
+		AllowedOrigins:   origins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Content-Type"},
 		AllowCredentials: false,
@@ -39,4 +44,20 @@ func NewRouter(offerH *OfferHandler, simH *SimulationHandler) http.Handler {
 	})
 
 	return r
+}
+
+// parseOrigins splits a comma-separated origins string into a slice,
+// trimming whitespace. Falls back to localhost dev defaults when empty.
+func parseOrigins(s string) []string {
+	if s == "" {
+		return []string{"http://localhost:5173", "http://localhost:3000"}
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if o := strings.TrimSpace(p); o != "" {
+			out = append(out, o)
+		}
+	}
+	return out
 }

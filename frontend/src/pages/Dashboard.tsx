@@ -1,4 +1,4 @@
-import { Zap, Tag, TrendingDown, Clock } from 'lucide-react'
+import { Tag, TrendingDown, Clock } from 'lucide-react'
 import { SimulationForm } from '@/components/SimulationForm'
 import { SimulationResult } from '@/components/SimulationResult'
 import { useOffers } from '@/hooks/useOffers'

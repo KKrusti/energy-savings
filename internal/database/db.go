@@ -24,6 +24,11 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("ping sqlite: %w", err)
 	}
 
+	// Enable WAL for better read/write concurrency and foreign-key enforcement.
+	if _, err := db.ExecContext(ctx, "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;"); err != nil {
+		return nil, fmt.Errorf("configure sqlite pragmas: %w", err)
+	}
+
 	if err := migrate(ctx, db); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
@@ -98,14 +103,35 @@ func migrate(ctx context.Context, db *sql.DB) error {
 		if m.version <= version {
 			continue
 		}
-		for _, stmt := range m.stmts {
-			if _, err := db.ExecContext(ctx, stmt); err != nil {
-				return fmt.Errorf("migration v%d: %w", m.version, err)
-			}
+		if err := applyMigration(ctx, db, m); err != nil {
+			return err
 		}
-		if _, err := db.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", m.version)); err != nil {
-			return fmt.Errorf("set user_version %d: %w", m.version, err)
+	}
+	return nil
+}
+
+// applyMigration runs all statements of a single migration inside a transaction
+// and updates user_version atomically. If any statement fails the transaction is
+// rolled back, leaving the database in the previous consistent state.
+func applyMigration(ctx context.Context, db *sql.DB, m migration) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin migration v%d: %w", m.version, err)
+	}
+	defer tx.Rollback() //nolint:errcheck // intentional best-effort rollback
+
+	for _, stmt := range m.stmts {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("migration v%d: %w", m.version, err)
 		}
+	}
+	// PRAGMA user_version cannot run inside a transaction in some SQLite drivers;
+	// commit first then update the version.
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit migration v%d: %w", m.version, err)
+	}
+	if _, err := db.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", m.version)); err != nil {
+		return fmt.Errorf("set user_version %d: %w", m.version, err)
 	}
 	return nil
 }

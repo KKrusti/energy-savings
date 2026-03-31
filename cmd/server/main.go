@@ -36,7 +36,8 @@ func main() {
 	offerHandler := api.NewOfferHandler(offerSvc)
 	simHandler := api.NewSimulationHandler(offerSvc, calcSvc)
 
-	router := api.NewRouter(offerHandler, simHandler)
+	allowedOrigins := envOrDefault("CORS_ALLOWED_ORIGINS", "")
+	router := api.NewRouter(offerHandler, simHandler, allowedOrigins)
 
 	srv := &http.Server{
 		Addr:         addr,

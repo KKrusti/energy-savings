@@ -59,8 +59,8 @@ func (s *OfferService) ListOffers(ctx context.Context) ([]domain.Offer, error) {
 
 // UpdateOffer validates and updates an existing offer.
 func (s *OfferService) UpdateOffer(ctx context.Context, id int64, input domain.UpdateOfferInput) (domain.Offer, error) {
-	if input.Name == "" {
-		return domain.Offer{}, fmt.Errorf("%w: name is required", ErrInvalidInput)
+	if err := validateUpdateInput(input); err != nil {
+		return domain.Offer{}, fmt.Errorf("%w: %s", ErrInvalidInput, err)
 	}
 	offer, err := s.repo.Update(ctx, id, input)
 	if errors.Is(err, repository.ErrNotFound) {
@@ -79,6 +79,28 @@ func (s *OfferService) DeleteOffer(ctx context.Context, id int64) error {
 }
 
 func validateCreateInput(input domain.CreateOfferInput) error {
+	if input.Name == "" {
+		return errors.New("name is required")
+	}
+	if input.Provider == "" {
+		return errors.New("provider is required")
+	}
+	if input.EnergyPricePeakKWh < 0 || input.EnergyPriceMidKWh < 0 || input.EnergyPriceValleyKWh < 0 {
+		return errors.New("energy prices must be non-negative")
+	}
+	if input.PowerTermPricePeak < 0 || input.PowerTermPriceValley < 0 {
+		return errors.New("power term prices must be non-negative")
+	}
+	if input.SurplusCompensation < 0 {
+		return errors.New("surplus_compensation must be non-negative")
+	}
+	if input.HasPermanence && input.PermanenceMonths <= 0 {
+		return errors.New("permanence_months must be greater than 0 when has_permanence is true")
+	}
+	return nil
+}
+
+func validateUpdateInput(input domain.UpdateOfferInput) error {
 	if input.Name == "" {
 		return errors.New("name is required")
 	}

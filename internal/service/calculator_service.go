@@ -2,6 +2,8 @@
 package service
 
 import (
+	"math"
+
 	"github.com/carlos/energy-savings/internal/domain"
 )
 
@@ -78,11 +80,15 @@ func (s *CalculatorService) CalculateAll(offers []domain.Offer, req domain.Simul
 	return domain.SimulationResponse{Breakdowns: breakdowns}
 }
 
-// effectiveEnergyPrice returns the single energy price to use in calculations.
-// When flat, all periods share the peak price. When tiered, peak is used as
-// a conservative estimate until per-period consumption is supported.
+// effectiveEnergyPrice returns the representative energy price for simulation.
+// When flat, all periods share the same price (EnergyPricePeakKWh).
+// When tiered, the average of the three periods is used as an unweighted estimate
+// until per-period consumption data is supported.
 func effectiveEnergyPrice(o domain.Offer) float64 {
-	return o.EnergyPricePeakKWh
+	if o.EnergyPriceFlat {
+		return o.EnergyPricePeakKWh
+	}
+	return (o.EnergyPricePeakKWh + o.EnergyPriceMidKWh + o.EnergyPriceValleyKWh) / 3
 }
 
 // effectivePowerPrice returns the single power term price to use in calculations.
@@ -94,7 +100,7 @@ func effectivePowerPrice(o domain.Offer) float64 {
 	return (o.PowerTermPricePeak + o.PowerTermPriceValley) / 2
 }
 
-// round2 rounds a float to 2 decimal places.
+// round2 rounds a float to 2 decimal places using banker's-rounding-safe math.Round.
 func round2(v float64) float64 {
-	return float64(int(v*100+0.5)) / 100
+	return math.Round(v*100) / 100
 }

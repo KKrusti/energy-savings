@@ -40,6 +40,9 @@ export interface CreateOfferInput {
   notes: string
 }
 
+// UpdateOfferInput mirrors CreateOfferInput — all fields are required on update (full replacement).
+export type UpdateOfferInput = CreateOfferInput
+
 export interface SimulationRequest {
   offer_id?: number
   consumption_kwh: number

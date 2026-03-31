@@ -2,9 +2,11 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/carlos/energy-savings/internal/domain"
+	"github.com/carlos/energy-savings/internal/service"
 )
 
 // simulationService is the interface SimulationHandler depends on.
@@ -52,8 +54,12 @@ func (h *SimulationHandler) Simulate(w http.ResponseWriter, r *http.Request) {
 
 	if req.OfferID != 0 {
 		offer, err := h.offerSvc.GetOffer(ctx, req.OfferID)
-		if err != nil {
+		if errors.Is(err, service.ErrOfferNotFound) {
 			writeError(w, http.StatusNotFound, "oferta no encontrada")
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "error al obtener oferta")
 			return
 		}
 		breakdown := h.calc.Calculate(offer, req)

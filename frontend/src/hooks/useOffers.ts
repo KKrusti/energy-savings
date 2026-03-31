@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { offersApi } from '@/api/client'
-import type { CreateOfferInput } from '@/types'
+import type { UpdateOfferInput } from '@/types'
 
 const OFFERS_KEY = ['offers']
 
@@ -22,7 +22,7 @@ export function useCreateOffer() {
 export function useUpdateOffer() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<CreateOfferInput> }) =>
+    mutationFn: ({ id, data }: { id: number; data: UpdateOfferInput }) =>
       offersApi.update(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: OFFERS_KEY }),
   })
