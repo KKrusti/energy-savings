@@ -40,7 +40,7 @@ func (s *CalculatorService) Calculate(offer domain.Offer, req domain.SimulationR
 	energyTerm := req.ConsumptionKWh * energyPrice
 
 	// Power term: contracted power (kW) × daily price (€/kW/day) × days
-	powerTerm := req.ContractedPowerKW * powerPrice * (float64(req.DaysInPeriod) / 365.0)
+	powerTerm := req.ContractedPowerKW * powerPrice * float64(req.DaysInPeriod)
 
 	// Surplus solar credit (negative item on the bill)
 	surplusCredit := req.SurplusKWh * offer.SurplusCompensation

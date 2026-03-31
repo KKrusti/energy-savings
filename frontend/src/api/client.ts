@@ -2,8 +2,6 @@ import type {
   Offer,
   CreateOfferInput,
   UpdateOfferInput,
-  SimulationRequest,
-  SimulationResponse,
   AnnualSimulationRequest,
   AnnualSimulationResponse,
   ConsumptionHistoryResponse,
@@ -37,8 +35,6 @@ export const offersApi = {
 
 // Simulation
 export const simulationApi = {
-  simulate: (data: SimulationRequest) =>
-    request<SimulationResponse>('/simulate', { method: 'POST', body: JSON.stringify(data) }),
   simulateAnnual: (data: AnnualSimulationRequest) =>
     request<AnnualSimulationResponse>('/simulate/annual', { method: 'POST', body: JSON.stringify(data) }),
 }

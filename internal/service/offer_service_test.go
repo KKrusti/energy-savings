@@ -48,7 +48,7 @@ func (m *mockOfferRepo) GetByID(_ context.Context, id int64) (domain.Offer, erro
 	if o, ok := m.offers[id]; ok {
 		return o, nil
 	}
-	return domain.Offer{}, repository.ErrNotFound
+	return domain.Offer{}, repository.ErrOfferNotFound
 }
 
 func (m *mockOfferRepo) List(_ context.Context) ([]domain.Offer, error) {
@@ -61,7 +61,7 @@ func (m *mockOfferRepo) List(_ context.Context) ([]domain.Offer, error) {
 
 func (m *mockOfferRepo) Update(_ context.Context, id int64, input domain.UpdateOfferInput) (domain.Offer, error) {
 	if _, ok := m.offers[id]; !ok {
-		return domain.Offer{}, repository.ErrNotFound
+		return domain.Offer{}, repository.ErrOfferNotFound
 	}
 	o := domain.Offer{
 		ID: id, Name: input.Name, Provider: input.Provider,
@@ -75,21 +75,32 @@ func (m *mockOfferRepo) Update(_ context.Context, id int64, input domain.UpdateO
 
 func (m *mockOfferRepo) Delete(_ context.Context, id int64) error {
 	if _, ok := m.offers[id]; !ok {
-		return repository.ErrNotFound
+		return repository.ErrOfferNotFound
 	}
 	delete(m.offers, id)
 	return nil
 }
 
-// UnsetCurrent clears IsCurrent on all offers in the mock store.
-func (m *mockOfferRepo) UnsetCurrent(_ context.Context) error {
+// unsetCurrent clears IsCurrent on all offers in the mock store.
+func (m *mockOfferRepo) unsetCurrent() {
 	for id, o := range m.offers {
 		if o.IsCurrent {
 			o.IsCurrent = false
 			m.offers[id] = o
 		}
 	}
-	return nil
+}
+
+// CreateAsCurrent atomically unsets the current offer and creates the new one.
+func (m *mockOfferRepo) CreateAsCurrent(ctx context.Context, input domain.CreateOfferInput) (domain.Offer, error) {
+	m.unsetCurrent()
+	return m.Create(ctx, input)
+}
+
+// UpdateAsCurrent atomically unsets the current offer and updates the target one.
+func (m *mockOfferRepo) UpdateAsCurrent(ctx context.Context, id int64, input domain.UpdateOfferInput) (domain.Offer, error) {
+	m.unsetCurrent()
+	return m.Update(ctx, id, input)
 }
 
 func validInput() domain.CreateOfferInput {

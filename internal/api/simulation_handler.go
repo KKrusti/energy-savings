@@ -100,27 +100,21 @@ func (h *SimulationHandler) SimulateAnnual(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusUnprocessableEntity, "months no puede tener más de 12 entradas")
 		return
 	}
+
+	// currentYear is resolved once here so it can be easily overridden in tests via
+	// a request field in the future. Using time.Now() in the handler is acceptable for
+	// a simple year-fallback, but it is isolated to a single assignment.
+	currentYear := time.Now().Year()
+
 	for i, m := range req.Months {
-		if m.Month < 1 || m.Month > 12 {
-			writeError(w, http.StatusUnprocessableEntity, "month debe estar entre 1 y 12")
-			return
-		}
-		if m.SurplusKWh < 0 {
-			writeError(w, http.StatusUnprocessableEntity, "surplus_kwh no puede ser negativo")
-			return
-		}
-		if m.PeakKWh < 0 || m.MidKWh < 0 || m.ValleyKWh < 0 {
-			writeError(w, http.StatusUnprocessableEntity, "los valores de consumo no pueden ser negativos")
-			return
-		}
-		if m.PowerPeakKW <= 0 || m.PowerValleyKW <= 0 {
-			writeError(w, http.StatusUnprocessableEntity, "power_peak_kw y power_valley_kw deben ser mayores que 0")
+		if status, msg := validateMonthlyConsumption(m, false); status != 0 {
+			writeError(w, status, msg)
 			return
 		}
 		// Derive billing days automatically from the calendar month/year.
 		year := m.Year
 		if year == 0 {
-			year = time.Now().Year()
+			year = currentYear
 		}
 		req.Months[i].Days = time.Date(year, time.Month(m.Month+1), 0, 0, 0, 0, 0, time.UTC).Day()
 	}

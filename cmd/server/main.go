@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -50,7 +49,7 @@ func main() {
 	}
 
 	go func() {
-		fmt.Printf("servidor escuchando en %s\n", addr)
+		log.Printf("servidor escuchando en %s", addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("listen: %v", err)
 		}
@@ -65,7 +64,7 @@ func main() {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Fatalf("shutdown: %v", err)
 	}
-	fmt.Println("servidor detenido")
+	log.Println("servidor detenido")
 }
 
 func envOrDefault(key, defaultVal string) string {

@@ -121,7 +121,7 @@ func TestOfferRepository_GetByID(t *testing.T) {
 
 	t.Run("not found", func(t *testing.T) {
 		_, err := repo.GetByID(ctx, 9999)
-		assert.ErrorIs(t, err, repository.ErrNotFound)
+		assert.ErrorIs(t, err, repository.ErrOfferNotFound)
 	})
 }
 
@@ -175,7 +175,7 @@ func TestOfferRepository_Update(t *testing.T) {
 
 	t.Run("not found", func(t *testing.T) {
 		_, err := repo.Update(ctx, 9999, domain.UpdateOfferInput{Name: "X", Provider: "X"})
-		assert.ErrorIs(t, err, repository.ErrNotFound)
+		assert.ErrorIs(t, err, repository.ErrOfferNotFound)
 	})
 }
 
@@ -189,10 +189,10 @@ func TestOfferRepository_Delete(t *testing.T) {
 	t.Run("successful delete", func(t *testing.T) {
 		require.NoError(t, repo.Delete(ctx, created.ID))
 		_, err = repo.GetByID(ctx, created.ID)
-		assert.ErrorIs(t, err, repository.ErrNotFound)
+		assert.ErrorIs(t, err, repository.ErrOfferNotFound)
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		assert.ErrorIs(t, repo.Delete(ctx, 9999), repository.ErrNotFound)
+		assert.ErrorIs(t, repo.Delete(ctx, 9999), repository.ErrOfferNotFound)
 	})
 }

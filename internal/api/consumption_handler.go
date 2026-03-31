@@ -40,27 +40,15 @@ func (h *ConsumptionHandler) GetHistory(w http.ResponseWriter, r *http.Request) 
 // SaveHistory godoc — PUT /api/consumption/history
 // Upserts all months in the request body (insert or replace by month+year).
 func (h *ConsumptionHandler) SaveHistory(w http.ResponseWriter, r *http.Request) {
-	var req domain.ConsumptionHistoryResponse
+	var req domain.SaveHistoryRequest
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "body inválido")
 		return
 	}
 
 	for _, m := range req.Months {
-		if m.Month < 1 || m.Month > 12 {
-			writeError(w, http.StatusUnprocessableEntity, "month debe estar entre 1 y 12")
-			return
-		}
-		if m.Year < 2000 || m.Year > 2100 {
-			writeError(w, http.StatusUnprocessableEntity, "year no es válido")
-			return
-		}
-		if m.PeakKWh < 0 || m.MidKWh < 0 || m.ValleyKWh < 0 || m.SurplusKWh < 0 {
-			writeError(w, http.StatusUnprocessableEntity, "los valores de consumo no pueden ser negativos")
-			return
-		}
-		if m.PowerPeakKW <= 0 || m.PowerValleyKW <= 0 {
-			writeError(w, http.StatusUnprocessableEntity, "power_peak_kw y power_valley_kw deben ser mayores que 0")
+		if status, msg := validateMonthlyConsumption(m, true); status != 0 {
+			writeError(w, status, msg)
 			return
 		}
 	}

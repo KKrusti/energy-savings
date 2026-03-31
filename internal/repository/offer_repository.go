@@ -10,8 +10,12 @@ import (
 	"github.com/carlos/energy-savings/internal/domain"
 )
 
-// ErrNotFound is returned when a requested offer does not exist.
-var ErrNotFound = errors.New("offer not found")
+// ErrOfferNotFound is returned when a requested offer does not exist.
+var ErrOfferNotFound = errors.New("offer not found")
+
+// ErrNotFound is an alias kept for backward compatibility with existing references.
+// Deprecated: use ErrOfferNotFound directly.
+var ErrNotFound = ErrOfferNotFound
 
 // OfferRepository handles persistence of Offer entities.
 type OfferRepository struct {
@@ -84,12 +88,12 @@ func (r *OfferRepository) Create(ctx context.Context, input domain.CreateOfferIn
 	return o, nil
 }
 
-// GetByID returns the offer with the given ID or ErrNotFound.
+// GetByID returns the offer with the given ID or ErrOfferNotFound.
 func (r *OfferRepository) GetByID(ctx context.Context, id int64) (domain.Offer, error) {
 	q := `SELECT ` + selectCols + ` FROM offers WHERE id = ?`
 	o, err := scanOffer(r.db.QueryRowContext(ctx, q, id))
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Offer{}, ErrNotFound
+		return domain.Offer{}, ErrOfferNotFound
 	}
 	if err != nil {
 		return domain.Offer{}, fmt.Errorf("get offer by id: %w", err)
@@ -117,7 +121,7 @@ func (r *OfferRepository) List(ctx context.Context) ([]domain.Offer, error) {
 	return offers, rows.Err()
 }
 
-// Update modifies an existing offer. Returns ErrNotFound if it does not exist.
+// Update modifies an existing offer. Returns ErrOfferNotFound if it does not exist.
 // The caller is responsible for clearing is_current on other rows before calling this method.
 func (r *OfferRepository) Update(ctx context.Context, id int64, input domain.UpdateOfferInput) (domain.Offer, error) {
 	const q = `
@@ -144,12 +148,12 @@ func (r *OfferRepository) Update(ctx context.Context, id int64, input domain.Upd
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return domain.Offer{}, ErrNotFound
+		return domain.Offer{}, ErrOfferNotFound
 	}
 	return r.GetByID(ctx, id)
 }
 
-// Delete removes an offer by ID. Returns ErrNotFound if it does not exist.
+// Delete removes an offer by ID. Returns ErrOfferNotFound if it does not exist.
 func (r *OfferRepository) Delete(ctx context.Context, id int64) error {
 	res, err := r.db.ExecContext(ctx, `DELETE FROM offers WHERE id = ?`, id)
 	if err != nil {
@@ -157,7 +161,7 @@ func (r *OfferRepository) Delete(ctx context.Context, id int64) error {
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return ErrNotFound
+		return ErrOfferNotFound
 	}
 	return nil
 }
@@ -170,6 +174,102 @@ func (r *OfferRepository) UnsetCurrent(ctx context.Context) error {
 		return fmt.Errorf("unset current offer: %w", err)
 	}
 	return nil
+}
+
+// CreateAsCurrent unsets any current offer and creates the new one atomically in a single
+// transaction, preventing the race condition where a partial failure would leave no current offer.
+func (r *OfferRepository) CreateAsCurrent(ctx context.Context, input domain.CreateOfferInput) (domain.Offer, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.Offer{}, fmt.Errorf("begin create-as-current transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	if _, err := tx.ExecContext(ctx, `UPDATE offers SET is_current = 0 WHERE is_current = 1`); err != nil {
+		return domain.Offer{}, fmt.Errorf("unset current offer: %w", err)
+	}
+
+	const q = `
+		INSERT INTO offers (
+			name, provider,
+			energy_price_flat, energy_price_peak_kwh, energy_price_mid_kwh, energy_price_valley_kwh,
+			power_term_same_price, power_term_price_peak, power_term_price_valley,
+			surplus_compensation,
+			has_permanence, permanence_months,
+			is_green_energy, notes, is_current
+		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		RETURNING ` + selectCols
+
+	row := tx.QueryRowContext(ctx, q,
+		input.Name, input.Provider,
+		boolToInt(input.EnergyPriceFlat), input.EnergyPricePeakKWh, input.EnergyPriceMidKWh, input.EnergyPriceValleyKWh,
+		boolToInt(input.PowerTermSamePrice), input.PowerTermPricePeak, input.PowerTermPriceValley,
+		input.SurplusCompensation,
+		boolToInt(input.HasPermanence), input.PermanenceMonths,
+		boolToInt(input.IsGreenEnergy), input.Notes, boolToInt(input.IsCurrent),
+	)
+	o, err := scanOffer(row)
+	if err != nil {
+		return domain.Offer{}, fmt.Errorf("create offer: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return domain.Offer{}, fmt.Errorf("commit create-as-current: %w", err)
+	}
+	return o, nil
+}
+
+// UpdateAsCurrent unsets any current offer and updates the target offer atomically in a single
+// transaction, preventing the race condition where a partial failure would leave no current offer.
+func (r *OfferRepository) UpdateAsCurrent(ctx context.Context, id int64, input domain.UpdateOfferInput) (domain.Offer, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.Offer{}, fmt.Errorf("begin update-as-current transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	if _, err := tx.ExecContext(ctx, `UPDATE offers SET is_current = 0 WHERE is_current = 1`); err != nil {
+		return domain.Offer{}, fmt.Errorf("unset current offer: %w", err)
+	}
+
+	const q = `
+		UPDATE offers SET
+			name=?, provider=?,
+			energy_price_flat=?, energy_price_peak_kwh=?, energy_price_mid_kwh=?, energy_price_valley_kwh=?,
+			power_term_same_price=?, power_term_price_peak=?, power_term_price_valley=?,
+			surplus_compensation=?,
+			has_permanence=?, permanence_months=?,
+			is_green_energy=?, notes=?, is_current=?
+		WHERE id=?`
+
+	res, err := tx.ExecContext(ctx, q,
+		input.Name, input.Provider,
+		boolToInt(input.EnergyPriceFlat), input.EnergyPricePeakKWh, input.EnergyPriceMidKWh, input.EnergyPriceValleyKWh,
+		boolToInt(input.PowerTermSamePrice), input.PowerTermPricePeak, input.PowerTermPriceValley,
+		input.SurplusCompensation,
+		boolToInt(input.HasPermanence), input.PermanenceMonths,
+		boolToInt(input.IsGreenEnergy), input.Notes, boolToInt(input.IsCurrent),
+		id,
+	)
+	if err != nil {
+		return domain.Offer{}, fmt.Errorf("update offer: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return domain.Offer{}, ErrOfferNotFound
+	}
+
+	// Read back the updated row within the same transaction.
+	q2 := `SELECT ` + selectCols + ` FROM offers WHERE id = ?`
+	o, err := scanOffer(tx.QueryRowContext(ctx, q2, id))
+	if err != nil {
+		return domain.Offer{}, fmt.Errorf("read updated offer: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return domain.Offer{}, fmt.Errorf("commit update-as-current: %w", err)
+	}
+	return o, nil
 }
 
 func boolToInt(b bool) int {

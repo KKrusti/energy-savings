@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io"
 	"net/http"
+
+	"github.com/carlos/energy-savings/internal/domain"
 )
 
 // maxBodyBytes is the maximum size accepted for request bodies (1 MiB).
@@ -35,4 +37,23 @@ func decodeJSON(r *http.Request, v any) error {
 		return errors.New("request body too large")
 	}
 	return nil
+}
+
+// validateMonthlyConsumption validates a single MonthlyConsumption entry.
+// Shared by SimulationHandler (SimulateAnnual) and ConsumptionHandler (SaveHistory).
+// When requireYear is true, the year field must be in the range [2000, 2100].
+func validateMonthlyConsumption(m domain.MonthlyConsumption, requireYear bool) (status int, msg string) {
+	if m.Month < 1 || m.Month > 12 {
+		return http.StatusUnprocessableEntity, "month debe estar entre 1 y 12"
+	}
+	if requireYear && (m.Year < 2000 || m.Year > 2100) {
+		return http.StatusUnprocessableEntity, "year no es válido"
+	}
+	if m.PeakKWh < 0 || m.MidKWh < 0 || m.ValleyKWh < 0 || m.SurplusKWh < 0 {
+		return http.StatusUnprocessableEntity, "los valores de consumo no pueden ser negativos"
+	}
+	if m.PowerPeakKW <= 0 || m.PowerValleyKW <= 0 {
+		return http.StatusUnprocessableEntity, "power_peak_kw y power_valley_kw deben ser mayores que 0"
+	}
+	return 0, ""
 }

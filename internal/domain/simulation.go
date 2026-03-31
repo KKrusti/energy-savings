@@ -95,3 +95,10 @@ type AnnualSimulationResponse struct {
 type ConsumptionHistoryResponse struct {
 	Months []MonthlyConsumption `json:"months"`
 }
+
+// SaveHistoryRequest is the request body for PUT /api/consumption/history.
+// Kept as a separate type from ConsumptionHistoryResponse to respect SRP:
+// the response type may evolve (e.g. pagination, metadata) independently of the write contract.
+type SaveHistoryRequest struct {
+	Months []MonthlyConsumption `json:"months"`
+}

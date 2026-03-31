@@ -23,7 +23,10 @@ type offerRepo interface {
 	List(ctx context.Context) ([]domain.Offer, error)
 	Update(ctx context.Context, id int64, input domain.UpdateOfferInput) (domain.Offer, error)
 	Delete(ctx context.Context, id int64) error
-	UnsetCurrent(ctx context.Context) error
+	// CreateAsCurrent and UpdateAsCurrent perform the unset+write atomically in one transaction,
+	// preventing the race condition where a failure between both steps leaves no current offer.
+	CreateAsCurrent(ctx context.Context, input domain.CreateOfferInput) (domain.Offer, error)
+	UpdateAsCurrent(ctx context.Context, id int64, input domain.UpdateOfferInput) (domain.Offer, error)
 }
 
 // OfferService orchestrates offer operations.
@@ -37,15 +40,14 @@ func NewOfferService(repo offerRepo) *OfferService {
 }
 
 // CreateOffer validates and creates a new offer.
-// If input.IsCurrent is true, any previously current offer is unset first.
+// If input.IsCurrent is true, the unset of the previous current offer and the insert are
+// performed atomically via CreateAsCurrent to avoid leaving the database in an inconsistent state.
 func (s *OfferService) CreateOffer(ctx context.Context, input domain.CreateOfferInput) (domain.Offer, error) {
-	if err := validateCreateInput(input); err != nil {
+	if err := validateOfferInput(input.Name, input.Provider, input.EnergyPricePeakKWh, input.EnergyPriceMidKWh, input.EnergyPriceValleyKWh, input.PowerTermPricePeak, input.PowerTermPriceValley, input.SurplusCompensation, input.HasPermanence, input.PermanenceMonths); err != nil {
 		return domain.Offer{}, fmt.Errorf("%w: %s", ErrInvalidInput, err)
 	}
 	if input.IsCurrent {
-		if err := s.repo.UnsetCurrent(ctx); err != nil {
-			return domain.Offer{}, fmt.Errorf("unset current offer: %w", err)
-		}
+		return s.repo.CreateAsCurrent(ctx, input)
 	}
 	return s.repo.Create(ctx, input)
 }
@@ -53,7 +55,7 @@ func (s *OfferService) CreateOffer(ctx context.Context, input domain.CreateOffer
 // GetOffer retrieves a single offer by ID.
 func (s *OfferService) GetOffer(ctx context.Context, id int64) (domain.Offer, error) {
 	offer, err := s.repo.GetByID(ctx, id)
-	if errors.Is(err, repository.ErrNotFound) {
+	if errors.Is(err, repository.ErrOfferNotFound) {
 		return domain.Offer{}, ErrOfferNotFound
 	}
 	return offer, err
@@ -65,18 +67,21 @@ func (s *OfferService) ListOffers(ctx context.Context) ([]domain.Offer, error) {
 }
 
 // UpdateOffer validates and updates an existing offer.
-// If input.IsCurrent is true, any previously current offer (other than this one) is unset first.
+// If input.IsCurrent is true, the unset of the previous current offer and the update are
+// performed atomically via UpdateAsCurrent to avoid leaving the database in an inconsistent state.
 func (s *OfferService) UpdateOffer(ctx context.Context, id int64, input domain.UpdateOfferInput) (domain.Offer, error) {
-	if err := validateUpdateInput(input); err != nil {
+	if err := validateOfferInput(input.Name, input.Provider, input.EnergyPricePeakKWh, input.EnergyPriceMidKWh, input.EnergyPriceValleyKWh, input.PowerTermPricePeak, input.PowerTermPriceValley, input.SurplusCompensation, input.HasPermanence, input.PermanenceMonths); err != nil {
 		return domain.Offer{}, fmt.Errorf("%w: %s", ErrInvalidInput, err)
 	}
 	if input.IsCurrent {
-		if err := s.repo.UnsetCurrent(ctx); err != nil {
-			return domain.Offer{}, fmt.Errorf("unset current offer: %w", err)
+		offer, err := s.repo.UpdateAsCurrent(ctx, id, input)
+		if errors.Is(err, repository.ErrOfferNotFound) {
+			return domain.Offer{}, ErrOfferNotFound
 		}
+		return offer, err
 	}
 	offer, err := s.repo.Update(ctx, id, input)
-	if errors.Is(err, repository.ErrNotFound) {
+	if errors.Is(err, repository.ErrOfferNotFound) {
 		return domain.Offer{}, ErrOfferNotFound
 	}
 	return offer, err
@@ -85,51 +90,36 @@ func (s *OfferService) UpdateOffer(ctx context.Context, id int64, input domain.U
 // DeleteOffer removes an offer by ID.
 func (s *OfferService) DeleteOffer(ctx context.Context, id int64) error {
 	err := s.repo.Delete(ctx, id)
-	if errors.Is(err, repository.ErrNotFound) {
+	if errors.Is(err, repository.ErrOfferNotFound) {
 		return ErrOfferNotFound
 	}
 	return err
 }
 
-func validateCreateInput(input domain.CreateOfferInput) error {
-	if input.Name == "" {
+// validateOfferInput is shared by CreateOffer and UpdateOffer to avoid duplication.
+func validateOfferInput(
+	name, provider string,
+	peakKWh, midKWh, valleyKWh float64,
+	powerPeak, powerValley float64,
+	surplusCompensation float64,
+	hasPermanence bool, permanenceMonths int,
+) error {
+	if name == "" {
 		return errors.New("name is required")
 	}
-	if input.Provider == "" {
+	if provider == "" {
 		return errors.New("provider is required")
 	}
-	if input.EnergyPricePeakKWh < 0 || input.EnergyPriceMidKWh < 0 || input.EnergyPriceValleyKWh < 0 {
+	if peakKWh < 0 || midKWh < 0 || valleyKWh < 0 {
 		return errors.New("energy prices must be non-negative")
 	}
-	if input.PowerTermPricePeak < 0 || input.PowerTermPriceValley < 0 {
+	if powerPeak < 0 || powerValley < 0 {
 		return errors.New("power term prices must be non-negative")
 	}
-	if input.SurplusCompensation < 0 {
+	if surplusCompensation < 0 {
 		return errors.New("surplus_compensation must be non-negative")
 	}
-	if input.HasPermanence && input.PermanenceMonths <= 0 {
-		return errors.New("permanence_months must be greater than 0 when has_permanence is true")
-	}
-	return nil
-}
-
-func validateUpdateInput(input domain.UpdateOfferInput) error {
-	if input.Name == "" {
-		return errors.New("name is required")
-	}
-	if input.Provider == "" {
-		return errors.New("provider is required")
-	}
-	if input.EnergyPricePeakKWh < 0 || input.EnergyPriceMidKWh < 0 || input.EnergyPriceValleyKWh < 0 {
-		return errors.New("energy prices must be non-negative")
-	}
-	if input.PowerTermPricePeak < 0 || input.PowerTermPriceValley < 0 {
-		return errors.New("power term prices must be non-negative")
-	}
-	if input.SurplusCompensation < 0 {
-		return errors.New("surplus_compensation must be non-negative")
-	}
-	if input.HasPermanence && input.PermanenceMonths <= 0 {
+	if hasPermanence && permanenceMonths <= 0 {
 		return errors.New("permanence_months must be greater than 0 when has_permanence is true")
 	}
 	return nil

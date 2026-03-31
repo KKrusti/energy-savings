@@ -63,7 +63,7 @@ interface OfferCardProps {
 
 export function OfferCard({ offer, onEdit, onDelete, annualSaving, podiumRank }: OfferCardProps) {
   const showSaving = annualSaving !== undefined && !offer.is_current
-  const isCheaper = showSaving && annualSaving!.euros < 0
+  const isCheaper = showSaving && annualSaving.euros < 0
   const podium = podiumRank ? PODIUM[podiumRank] : null
 
   const borderClass = offer.is_current
@@ -179,7 +179,7 @@ export function OfferCard({ offer, onEdit, onDelete, annualSaving, podiumRank }:
         </div>
       )}
 
-      {showSaving && (
+      {showSaving && annualSaving && (
         <div className={`mb-3 flex items-center justify-between rounded-xl px-3 py-2 border
           ${isCheaper
             ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-400/10 dark:border-emerald-400/20'
@@ -194,8 +194,8 @@ export function OfferCard({ offer, onEdit, onDelete, annualSaving, podiumRank }:
               ? <TrendingDown className="w-3.5 h-3.5" aria-hidden="true" />
               : <TrendingUp className="w-3.5 h-3.5" aria-hidden="true" />
             }
-            {isCheaper ? '−' : '+'}{Math.abs(annualSaving!.euros).toFixed(2)} €
-            {' '}({isCheaper ? '−' : '+'}{Math.abs(annualSaving!.percent).toFixed(1)}%)
+            {isCheaper ? '−' : '+'}{Math.abs(annualSaving.euros).toFixed(2)} €
+            {' '}({isCheaper ? '−' : '+'}{Math.abs(annualSaving.percent).toFixed(1)}%)
           </span>
         </div>
       )}

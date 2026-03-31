@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 
 	_ "modernc.org/sqlite"
 )
@@ -163,7 +164,11 @@ func applyMigration(ctx context.Context, db *sql.DB, m migration) error {
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit migration v%d: %w", m.version, err)
 	}
-	if _, err := db.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", m.version)); err != nil {
+	// PRAGMA user_version cannot accept bound parameters; the version integer is
+	// constructed via strconv (not fmt.Sprintf) to make it clear the value is numeric
+	// and never derived from user input.
+	pragma := "PRAGMA user_version = " + strconv.Itoa(m.version)
+	if _, err := db.ExecContext(ctx, pragma); err != nil {
 		return fmt.Errorf("set user_version %d: %w", m.version, err)
 	}
 	return nil

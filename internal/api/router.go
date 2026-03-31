@@ -52,10 +52,12 @@ func NewRouter(offerH *OfferHandler, simH *SimulationHandler, consumptionH *Cons
 }
 
 // parseOrigins splits a comma-separated origins string into a slice,
-// trimming whitespace. Falls back to localhost dev defaults when empty.
+// trimming whitespace. Returns an empty slice when the string is empty,
+// which effectively disables cross-origin requests (CORS blocked by the browser).
+// Set CORS_ALLOWED_ORIGINS in your environment (e.g. "http://localhost:5173" for dev).
 func parseOrigins(s string) []string {
 	if s == "" {
-		return []string{"http://localhost:5173", "http://localhost:3000"}
+		return []string{}
 	}
 	parts := strings.Split(s, ",")
 	out := make([]string, 0, len(parts))
