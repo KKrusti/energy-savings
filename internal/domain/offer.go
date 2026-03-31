@@ -17,8 +17,8 @@ type Offer struct {
 
 	// Power term pricing — either same price for both periods or peak/valley split.
 	PowerTermSamePrice   bool    `json:"power_term_same_price"`   // true = same price for peak and valley
-	PowerTermPricePeak   float64 `json:"power_term_price_peak"`   // punta €/kW/year
-	PowerTermPriceValley float64 `json:"power_term_price_valley"` // valle €/kW/year
+	PowerTermPricePeak   float64 `json:"power_term_price_peak"`   // punta €/kW/día
+	PowerTermPriceValley float64 `json:"power_term_price_valley"` // valle €/kW/día
 
 	// Surplus solar compensation.
 	SurplusCompensation float64 `json:"surplus_compensation"` // €/kWh

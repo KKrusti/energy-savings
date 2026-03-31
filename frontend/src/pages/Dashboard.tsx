@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { Tag, TrendingDown, Clock } from 'lucide-react'
 import { MonthlyInputTable, buildDefaultMonths } from '@/components/MonthlyInputTable'
+import { MonthlyDetailDrawer } from '@/components/MonthlyDetailDrawer'
 import { AnnualCostChart } from '@/components/AnnualCostChart'
 import { MonthlyBreakdownChart } from '@/components/MonthlyBreakdownChart'
 import { useOffers } from '@/hooks/useOffers'
@@ -18,6 +19,7 @@ export function DashboardPage() {
     months: buildDefaultMonths(),
   }))
   const [selectedOffer, setSelectedOffer] = useState<AnnualOfferResult | null>(null)
+  const [detailMonth, setDetailMonth] = useState<{ month: number; year: number } | null>(null)
 
   // Populate the table with saved history once it loads.
   // Only replace if the server returned at least one entry.
@@ -36,6 +38,10 @@ export function DashboardPage() {
 
   const handleSelectOffer = useCallback((offer: AnnualOfferResult | null) => {
     setSelectedOffer(offer)
+  }, [])
+
+  const handleMonthClick = useCallback((month: number, year: number) => {
+    setDetailMonth({ month, year })
   }, [])
 
   return (
@@ -87,7 +93,11 @@ export function DashboardPage() {
       </div>
 
       <div className="mb-4">
-        <MonthlyInputTable value={annualReq} onChange={setAnnualReq} />
+        <MonthlyInputTable
+          value={annualReq}
+          onChange={setAnnualReq}
+          onMonthClick={annualSimulation.data ? handleMonthClick : undefined}
+        />
       </div>
 
       <div className="mb-8 flex items-center gap-3">
@@ -129,6 +139,12 @@ export function DashboardPage() {
           )}
         </div>
       )}
+
+      <MonthlyDetailDrawer
+        month={detailMonth}
+        data={annualSimulation.data}
+        onClose={() => setDetailMonth(null)}
+      />
     </section>
   )
 }

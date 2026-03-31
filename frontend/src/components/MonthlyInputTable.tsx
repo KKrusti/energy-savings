@@ -31,9 +31,11 @@ export function buildDefaultMonths(now = new Date()): MonthlyConsumption[] {
 interface Props {
   value: AnnualSimulationRequest
   onChange: (req: AnnualSimulationRequest) => void
+  /** Called when the user clicks on a month label. Only wired when simulation data exists. */
+  onMonthClick?: (month: number, year: number) => void
 }
 
-export function MonthlyInputTable({ value, onChange }: Props) {
+export function MonthlyInputTable({ value, onChange, onMonthClick }: Props) {
   const update = useCallback(
     (index: number, field: keyof MonthlyConsumption, raw: string) => {
       const parsed = parseFloat(raw)
@@ -79,8 +81,25 @@ export function MonthlyInputTable({ value, onChange }: Props) {
               className="border-b border-white/5 hover:bg-white/5 transition-colors"
             >
               <td className="px-3 py-2 font-medium text-slate-300">
-                {MONTH_NAMES[m.month - 1]}
-                <span className="ml-1 text-xs font-normal text-slate-500">{m.year}</span>
+                {onMonthClick ? (
+                  <button
+                    type="button"
+                    onClick={() => onMonthClick(m.month, m.year)}
+                    className="text-left hover:text-primary-light transition-colors group"
+                    title="Ver desglose por oferta"
+                  >
+                    {MONTH_NAMES[m.month - 1]}
+                    <span className="ml-1 text-xs font-normal text-slate-500 group-hover:text-slate-400">
+                      {m.year}
+                    </span>
+                    <span className="ml-1.5 text-xs text-slate-600 group-hover:text-primary-light" aria-hidden="true">↗</span>
+                  </button>
+                ) : (
+                  <>
+                    {MONTH_NAMES[m.month - 1]}
+                    <span className="ml-1 text-xs font-normal text-slate-500">{m.year}</span>
+                  </>
+                )}
               </td>
               <NumCell
                 value={m.peak_kwh}

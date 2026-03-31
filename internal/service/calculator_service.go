@@ -39,7 +39,7 @@ func (s *CalculatorService) Calculate(offer domain.Offer, req domain.SimulationR
 	// Energy term: consumption (kWh) × unit price (€/kWh)
 	energyTerm := req.ConsumptionKWh * energyPrice
 
-	// Power term: contracted power (kW) × annual price (€/kW/year) × days/365
+	// Power term: contracted power (kW) × daily price (€/kW/day) × days
 	powerTerm := req.ContractedPowerKW * powerPrice * (float64(req.DaysInPeriod) / 365.0)
 
 	// Surplus solar credit (negative item on the bill)
@@ -99,13 +99,12 @@ func (s *CalculatorService) CalculateMonthly(offer domain.Offer, m domain.Monthl
 			m.ValleyKWh*offer.EnergyPriceValleyKWh
 	}
 
-	dayFraction := float64(m.Days) / 365.0
 	var powerTerm float64
 	if offer.PowerTermSamePrice {
-		powerTerm = (m.PowerPeakKW + m.PowerValleyKW) * offer.PowerTermPricePeak * dayFraction
+		powerTerm = (m.PowerPeakKW + m.PowerValleyKW) * offer.PowerTermPricePeak * float64(m.Days)
 	} else {
-		powerTerm = m.PowerPeakKW*offer.PowerTermPricePeak*dayFraction +
-			m.PowerValleyKW*offer.PowerTermPriceValley*dayFraction
+		powerTerm = m.PowerPeakKW*offer.PowerTermPricePeak*float64(m.Days) +
+			m.PowerValleyKW*offer.PowerTermPriceValley*float64(m.Days)
 	}
 
 	// Surplus solar credit (negative item on the bill)
@@ -163,6 +162,21 @@ func (s *CalculatorService) CalculateAnnual(offers []domain.Offer, req domain.An
 				EnergyPeakTerm:   peakTerm,
 				EnergyMidTerm:    midTerm,
 				EnergyValleyTerm: valleyTerm,
+				// Raw inputs echoed back for itemised receipt rendering.
+				PeakKWh:       m.PeakKWh,
+				MidKWh:        m.MidKWh,
+				ValleyKWh:     m.ValleyKWh,
+				PowerPeakKW:   m.PowerPeakKW,
+				PowerValleyKW: m.PowerValleyKW,
+				SurplusKWh:    m.SurplusKWh,
+				Days:          m.Days,
+				// Unit prices used for each line item.
+				PricePeakKWh:     o.EnergyPricePeakKWh,
+				PriceMidKWh:      o.EnergyPriceMidKWh,
+				PriceValleyKWh:   o.EnergyPriceValleyKWh,
+				PricePowerPeak:   o.PowerTermPricePeak,
+				PricePowerValley: o.PowerTermPriceValley,
+				PriceSurplus:     o.SurplusCompensation,
 			})
 			yearTotal += bd.Total
 		}

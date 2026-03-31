@@ -91,6 +91,21 @@ export interface MonthlyBillBreakdown extends BillBreakdown {
   energy_peak_term: number
   energy_mid_term: number
   energy_valley_term: number
+  // Raw consumption inputs — echoed back for itemised receipt rendering
+  peak_kwh: number
+  mid_kwh: number
+  valley_kwh: number
+  power_peak_kw: number
+  power_valley_kw: number
+  surplus_kwh: number
+  days: number
+  // Unit prices used
+  price_peak_kwh: number
+  price_mid_kwh: number
+  price_valley_kwh: number
+  price_power_peak: number
+  price_power_valley: number
+  price_surplus: number
 }
 
 export interface AnnualOfferResult {

@@ -16,7 +16,7 @@ type BillBreakdown struct {
 	OfferName      string  `json:"offer_name"`
 	Provider       string  `json:"provider"`
 	EnergyTerm     float64 `json:"energy_term"`     // consumo × precio_kwh
-	PowerTerm      float64 `json:"power_term"`      // potencia × precio × días/365
+	PowerTerm      float64 `json:"power_term"`      // potencia × precio (€/kW/día) × días
 	SurplusCredit  float64 `json:"surplus_credit"`  // excedentes × compensación (negativo)
 	ElectricityTax float64 `json:"electricity_tax"` // impuesto electricidad 5.11269%
 	MeterRental    float64 `json:"meter_rental"`    // alquiler contador
@@ -51,7 +51,8 @@ type AnnualSimulationRequest struct {
 }
 
 // MonthlyBillBreakdown extends BillBreakdown with the month and year it belongs to,
-// plus a per-period energy cost breakdown for chart visualisation.
+// per-period energy cost breakdown for chart visualisation, and the raw input values
+// so the client can render a full itemised receipt (kWh × price = cost).
 type MonthlyBillBreakdown struct {
 	BillBreakdown
 	Month            int     `json:"month"`
@@ -59,6 +60,21 @@ type MonthlyBillBreakdown struct {
 	EnergyPeakTerm   float64 `json:"energy_peak_term"`   // peak kWh × peak price
 	EnergyMidTerm    float64 `json:"energy_mid_term"`    // mid kWh × mid price
 	EnergyValleyTerm float64 `json:"energy_valley_term"` // valley kWh × valley price
+	// Raw consumption inputs — echoed back so the client can display itemised receipts.
+	PeakKWh       float64 `json:"peak_kwh"`
+	MidKWh        float64 `json:"mid_kwh"`
+	ValleyKWh     float64 `json:"valley_kwh"`
+	PowerPeakKW   float64 `json:"power_peak_kw"`
+	PowerValleyKW float64 `json:"power_valley_kw"`
+	SurplusKWh    float64 `json:"surplus_kwh"`
+	// Unit prices used — echoed back for the itemised receipt.
+	PricePeakKWh     float64 `json:"price_peak_kwh"`
+	PriceMidKWh      float64 `json:"price_mid_kwh"`
+	PriceValleyKWh   float64 `json:"price_valley_kwh"`
+	PricePowerPeak   float64 `json:"price_power_peak"`
+	PricePowerValley float64 `json:"price_power_valley"`
+	PriceSurplus     float64 `json:"price_surplus"`
+	Days             int     `json:"days"`
 }
 
 // AnnualOfferResult contains the 12 monthly breakdowns for a single offer.
