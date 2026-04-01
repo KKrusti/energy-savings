@@ -50,6 +50,7 @@ cd frontend && npx vitest run src/components/__tests__/OfferCard.test.tsx
 ### Server environment variables
 - `ADDR` — listen address (default `:8080`)
 - `DB_PATH` — SQLite file path (default `energy-savings.db`, use `:memory:` in tests)
+- `CORS_ALLOWED_ORIGINS` — comma-separated allowed origins (e.g. `http://localhost:5173`); empty disables CORS
 
 ### WSL environment
 Vite listens on `0.0.0.0:5173` to be reachable from Windows. To get the WSL IP:
@@ -73,17 +74,22 @@ Monorepo with an independent Go backend and React frontend communicating via RES
 ```
 cmd/server/main.go          ← entry point, dependency wiring
 internal/
-  domain/                   ← pure entities (Offer, SimulationRequest, BillBreakdown)
+  domain/                   ← pure entities: Offer, SimulationRequest, BillBreakdown,
+                                MonthlyConsumption, AnnualSimulationRequest/Response,
+                                ConsumptionHistoryResponse, SaveHistoryRequest
   database/                 ← SQLite connection + schema migration
-  repository/               ← data access (OfferRepository on top of database/sql)
+  repository/               ← OfferRepository, ConsumptionRepository (database/sql)
   service/                  ← business logic (OfferService, CalculatorService)
   api/                      ← HTTP handlers + Chi router + JSON helpers
 frontend/src/
   types/                    ← TypeScript types mirroring the Go domain
-  api/client.ts             ← typed fetch wrapper (offersApi, simulationApi)
-  hooks/                    ← React Query wrappers (useOffers, useSimulation)
-  components/               ← OfferCard, OfferForm, SimulationForm, SimulationResult, Layout
-  pages/                    ← DashboardPage, OffersPage
+  api/client.ts             ← typed fetch wrapper
+  hooks/                    ← useOffers, useAnnualSimulation, useLastAnnualSimulation,
+                                useConsumptionHistory
+  components/               ← OfferCard, OfferForm, MonthlyInputTable, MonthlyDetailDrawer,
+                                AnnualCostChart, MonthlyBreakdownChart, Layout
+  pages/                    ← DashboardPage (/), OffersPage (/offers)
+  context/                  ← ThemeContext (dark/light mode)
 ```
 
 ### Backend dependency flow
@@ -93,14 +99,17 @@ Interfaces (`offerRepo`, `offerService`, `calculator`) are defined on the consum
 
 ### Electricity bill calculation
 `CalculatorService.Calculate` implements the structure of a standard Spanish electricity bill:
-1. **Energy term** = consumption kWh × price €/kWh
-2. **Power term** = contracted kW × €/kW·year × days/365
+1. **Energy term** = consumption kWh × price €/kWh — flat price or tiered (peak/mid/valley)
+2. **Power term** = contracted kW × €/kW·year × days/365 — single price or split peak/valley
 3. **Surplus compensation** (negative credit, solar installations only)
 4. **Electricity tax** = 5.11269% on (energy term + power term)
 5. **Meter rental** = 0.026557 €/day × days
 6. **VAT** = 21% on the subtotal
 
 The constants (`ElectricityTaxRate`, `IVARate`, `MeterRentalDailyRate`) are exported so tests can reference them directly.
+
+### Annual simulation
+`CalculatorService.CalculateAnnual` accepts up to 12 `MonthlyConsumption` entries. Billing days are derived server-side from `Month`+`Year` (the `Days` field is tagged `json:"-"` and never sent by the client). Results are `AnnualOfferResult` per offer, each containing `[]MonthlyBillBreakdown` and a `YearTotal`. The last result is cached client-side in `useLastAnnualSimulation` (React Query) so charts survive navigation. Consumption history is persisted via `PUT /api/consumption/history` (upsert by month+year) and restored on load.
 
 ### Database
 SQLite via `modernc.org/sqlite` (pure Go, no CGO). Schema migration runs on startup inside `database.Open`. Schema defined in `internal/database/db.go`.
