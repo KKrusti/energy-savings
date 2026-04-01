@@ -19,21 +19,25 @@ export function OffersPage() {
 
   // Build a map of offer_id -> AnnualSaving relative to the current tariff's year_total.
   // Also compute the podium rank (1=gold, 2=silver, 3=bronze) for offers cheaper than current.
-  const { annualSavingMap, podiumRankMap } = useMemo(() => {
+  // When simulation data is available, offers are sorted best (cheapest) to worst.
+  const { annualSavingMap, podiumRankMap, sortedOffers } = useMemo(() => {
     const savingMap = new Map<number, AnnualSaving>()
     const rankMap = new Map<number, 1 | 2 | 3>()
-    if (!annualSimulation) return { annualSavingMap: savingMap, podiumRankMap: rankMap }
+
+    if (!annualSimulation) return { annualSavingMap: savingMap, podiumRankMap: rankMap, sortedOffers: offers }
 
     const currentOffer = offers.find((o) => o.is_current)
-    if (!currentOffer) return { annualSavingMap: savingMap, podiumRankMap: rankMap }
+    if (!currentOffer) return { annualSavingMap: savingMap, podiumRankMap: rankMap, sortedOffers: offers }
 
     const currentResult = annualSimulation.offers.find((r) => r.offer_id === currentOffer.id)
-    if (!currentResult || currentResult.year_total === 0) return { annualSavingMap: savingMap, podiumRankMap: rankMap }
+    if (!currentResult || currentResult.year_total === 0) return { annualSavingMap: savingMap, podiumRankMap: rankMap, sortedOffers: offers }
 
     const currentYearTotal = currentResult.year_total
     const cheaper: Array<{ offer_id: number; year_total: number }> = []
 
+    const yearTotalMap = new Map<number, number>()
     for (const result of annualSimulation.offers) {
+      yearTotalMap.set(result.offer_id, result.year_total)
       if (result.offer_id === currentOffer.id) continue
       const diff = result.year_total - currentYearTotal
       savingMap.set(result.offer_id, {
@@ -48,7 +52,13 @@ export function OffersPage() {
       rankMap.set(offer_id, (i + 1) as 1 | 2 | 3)
     })
 
-    return { annualSavingMap: savingMap, podiumRankMap: rankMap }
+    const sorted = offers.toSorted((a, b) => {
+      const aTotal = yearTotalMap.get(a.id) ?? Infinity
+      const bTotal = yearTotalMap.get(b.id) ?? Infinity
+      return aTotal - bTotal
+    })
+
+    return { annualSavingMap: savingMap, podiumRankMap: rankMap, sortedOffers: sorted }
   }, [annualSimulation, offers])
 
   const handleSubmit = async (data: CreateOfferInput) => {
@@ -121,7 +131,7 @@ export function OffersPage() {
 
       {offers.length > 0 && (
         <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4" aria-label="Lista de ofertas">
-          {offers.map((offer) => (
+          {sortedOffers.map((offer) => (
             <li key={offer.id}>
               <OfferCard
                 offer={offer}
