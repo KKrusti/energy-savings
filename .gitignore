@@ -16,3 +16,8 @@
 # Python cache
 __pycache__/
 *.pyc
+
+# Variables de entorno (nunca subir al repositorio)
+.env
+.env*.local
+.vercel
