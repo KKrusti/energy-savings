@@ -18,9 +18,9 @@ func NewConsumptionRepository(db *sql.DB) *ConsumptionRepository {
 	return &ConsumptionRepository{db: db}
 }
 
-// Upsert inserts or replaces all entries in the slice.
-// Each (month, year) pair is treated as a natural key; existing rows are fully replaced.
-func (r *ConsumptionRepository) Upsert(ctx context.Context, months []domain.MonthlyConsumption) error {
+// Upsert inserts or replaces all entries in the slice, scoped to userID.
+// Each (user_id, month, year) triple is treated as a natural key.
+func (r *ConsumptionRepository) Upsert(ctx context.Context, userID int64, months []domain.MonthlyConsumption) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin upsert transaction: %w", err)
@@ -29,9 +29,9 @@ func (r *ConsumptionRepository) Upsert(ctx context.Context, months []domain.Mont
 
 	const q = `
 		INSERT INTO consumption_history
-			(month, year, peak_kwh, mid_kwh, valley_kwh, power_peak_kw, power_valley_kw, surplus_kwh)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		ON CONFLICT (month, year) DO UPDATE SET
+			(month, year, peak_kwh, mid_kwh, valley_kwh, power_peak_kw, power_valley_kw, surplus_kwh, user_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		ON CONFLICT (user_id, month, year) DO UPDATE SET
 			peak_kwh        = EXCLUDED.peak_kwh,
 			mid_kwh         = EXCLUDED.mid_kwh,
 			valley_kwh      = EXCLUDED.valley_kwh,
@@ -45,7 +45,7 @@ func (r *ConsumptionRepository) Upsert(ctx context.Context, months []domain.Mont
 			m.Month, m.Year,
 			m.PeakKWh, m.MidKWh, m.ValleyKWh,
 			m.PowerPeakKW, m.PowerValleyKW,
-			m.SurplusKWh,
+			m.SurplusKWh, userID,
 		); err != nil {
 			return fmt.Errorf("upsert month %d/%d: %w", m.Month, m.Year, err)
 		}
@@ -54,14 +54,15 @@ func (r *ConsumptionRepository) Upsert(ctx context.Context, months []domain.Mont
 	return tx.Commit()
 }
 
-// List returns all saved monthly consumption entries ordered chronologically (year, month ASC).
-func (r *ConsumptionRepository) List(ctx context.Context) ([]domain.MonthlyConsumption, error) {
+// List returns all saved monthly consumption entries for userID ordered chronologically.
+func (r *ConsumptionRepository) List(ctx context.Context, userID int64) ([]domain.MonthlyConsumption, error) {
 	const q = `
 		SELECT month, year, peak_kwh, mid_kwh, valley_kwh, power_peak_kw, power_valley_kw, surplus_kwh
 		FROM consumption_history
+		WHERE user_id = $1
 		ORDER BY year ASC, month ASC`
 
-	rows, err := r.db.QueryContext(ctx, q)
+	rows, err := r.db.QueryContext(ctx, q, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list consumption history: %w", err)
 	}

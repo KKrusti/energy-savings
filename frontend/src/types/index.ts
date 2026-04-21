@@ -127,3 +127,18 @@ export interface AnnualSimulationResponse {
 export interface ConsumptionHistoryResponse {
   months: MonthlyConsumption[]
 }
+
+// Auth types
+
+export interface AuthUser {
+  user_id: number
+  username: string
+  is_admin: boolean
+}
+
+export interface AuthResponse {
+  token: string
+  username: string
+  user_id: number
+  is_admin: boolean
+}

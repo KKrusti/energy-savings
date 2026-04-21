@@ -9,8 +9,8 @@ import (
 
 // consumptionStore is the persistence interface for consumption history.
 type consumptionStore interface {
-	Upsert(ctx context.Context, months []domain.MonthlyConsumption) error
-	List(ctx context.Context) ([]domain.MonthlyConsumption, error)
+	Upsert(ctx context.Context, userID int64, months []domain.MonthlyConsumption) error
+	List(ctx context.Context, userID int64) ([]domain.MonthlyConsumption, error)
 }
 
 // ConsumptionHandler handles HTTP requests for historical consumption data.
@@ -24,9 +24,9 @@ func NewConsumptionHandler(store consumptionStore) *ConsumptionHandler {
 }
 
 // GetHistory godoc — GET /api/consumption/history
-// Returns all saved monthly consumption entries ordered chronologically.
 func (h *ConsumptionHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
-	months, err := h.store.List(r.Context())
+	userID := UserIDFromContext(r.Context())
+	months, err := h.store.List(r.Context(), userID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "error al obtener historial")
 		return
@@ -38,7 +38,6 @@ func (h *ConsumptionHandler) GetHistory(w http.ResponseWriter, r *http.Request) 
 }
 
 // SaveHistory godoc — PUT /api/consumption/history
-// Upserts all months in the request body (insert or replace by month+year).
 func (h *ConsumptionHandler) SaveHistory(w http.ResponseWriter, r *http.Request) {
 	var req domain.SaveHistoryRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -53,7 +52,8 @@ func (h *ConsumptionHandler) SaveHistory(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	if err := h.store.Upsert(r.Context(), req.Months); err != nil {
+	userID := UserIDFromContext(r.Context())
+	if err := h.store.Upsert(r.Context(), userID, req.Months); err != nil {
 		writeError(w, http.StatusInternalServerError, "error al guardar historial")
 		return
 	}

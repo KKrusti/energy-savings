@@ -13,11 +13,11 @@ import (
 
 // offerService is the interface OfferHandler depends on.
 type offerService interface {
-	CreateOffer(ctx context.Context, input domain.CreateOfferInput) (domain.Offer, error)
-	GetOffer(ctx context.Context, id int64) (domain.Offer, error)
-	ListOffers(ctx context.Context) ([]domain.Offer, error)
-	UpdateOffer(ctx context.Context, id int64, input domain.UpdateOfferInput) (domain.Offer, error)
-	DeleteOffer(ctx context.Context, id int64) error
+	CreateOffer(ctx context.Context, input domain.CreateOfferInput, userID int64) (domain.Offer, error)
+	GetOffer(ctx context.Context, id int64, userID int64) (domain.Offer, error)
+	ListOffers(ctx context.Context, userID int64) ([]domain.Offer, error)
+	UpdateOffer(ctx context.Context, id int64, input domain.UpdateOfferInput, userID int64) (domain.Offer, error)
+	DeleteOffer(ctx context.Context, id int64, userID int64) error
 }
 
 // OfferHandler handles HTTP requests for offers.
@@ -32,7 +32,8 @@ func NewOfferHandler(svc offerService) *OfferHandler {
 
 // List godoc - GET /api/offers
 func (h *OfferHandler) List(w http.ResponseWriter, r *http.Request) {
-	offers, err := h.svc.ListOffers(r.Context())
+	userID := UserIDFromContext(r.Context())
+	offers, err := h.svc.ListOffers(r.Context(), userID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "error al listar ofertas")
 		return
@@ -50,7 +51,8 @@ func (h *OfferHandler) Get(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "id inválido")
 		return
 	}
-	offer, err := h.svc.GetOffer(r.Context(), id)
+	userID := UserIDFromContext(r.Context())
+	offer, err := h.svc.GetOffer(r.Context(), id, userID)
 	if errors.Is(err, service.ErrOfferNotFound) {
 		writeError(w, http.StatusNotFound, "oferta no encontrada")
 		return
@@ -69,7 +71,8 @@ func (h *OfferHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "body inválido")
 		return
 	}
-	offer, err := h.svc.CreateOffer(r.Context(), input)
+	userID := UserIDFromContext(r.Context())
+	offer, err := h.svc.CreateOffer(r.Context(), input, userID)
 	if errors.Is(err, service.ErrInvalidInput) {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -93,7 +96,8 @@ func (h *OfferHandler) Update(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "body inválido")
 		return
 	}
-	offer, err := h.svc.UpdateOffer(r.Context(), id, input)
+	userID := UserIDFromContext(r.Context())
+	offer, err := h.svc.UpdateOffer(r.Context(), id, input, userID)
 	if errors.Is(err, service.ErrOfferNotFound) {
 		writeError(w, http.StatusNotFound, "oferta no encontrada")
 		return
@@ -116,7 +120,8 @@ func (h *OfferHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "id inválido")
 		return
 	}
-	err = h.svc.DeleteOffer(r.Context(), id)
+	userID := UserIDFromContext(r.Context())
+	err = h.svc.DeleteOffer(r.Context(), id, userID)
 	if errors.Is(err, service.ErrOfferNotFound) {
 		writeError(w, http.StatusNotFound, "oferta no encontrada")
 		return

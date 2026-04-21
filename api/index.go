@@ -36,15 +36,18 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 
 		offerRepo := repository.NewOfferRepository(db)
 		consumptionRepo := repository.NewConsumptionRepository(db)
+		userRepo := repository.NewUserRepository(db)
+
 		offerSvc := service.NewOfferService(offerRepo)
 		calcSvc := service.NewCalculatorService()
 
 		offerHandler := internalapi.NewOfferHandler(offerSvc)
 		simHandler := internalapi.NewSimulationHandler(offerSvc, calcSvc)
 		consumptionHandler := internalapi.NewConsumptionHandler(consumptionRepo)
+		authHandler := internalapi.NewAuthHandler(userRepo)
 
 		corsOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
-		appHandler = internalapi.NewRouter(offerHandler, simHandler, consumptionHandler, corsOrigins)
+		appHandler = internalapi.NewRouter(offerHandler, simHandler, consumptionHandler, authHandler, userRepo, corsOrigins)
 	})
 
 	appHandler.ServeHTTP(w, r)

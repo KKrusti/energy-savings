@@ -18,15 +18,13 @@ var ErrInvalidInput = errors.New("invalid input")
 
 // offerRepo is the interface the service depends on (enables test mocking).
 type offerRepo interface {
-	Create(ctx context.Context, input domain.CreateOfferInput) (domain.Offer, error)
-	GetByID(ctx context.Context, id int64) (domain.Offer, error)
-	List(ctx context.Context) ([]domain.Offer, error)
-	Update(ctx context.Context, id int64, input domain.UpdateOfferInput) (domain.Offer, error)
-	Delete(ctx context.Context, id int64) error
-	// CreateAsCurrent and UpdateAsCurrent perform the unset+write atomically in one transaction,
-	// preventing the race condition where a failure between both steps leaves no current offer.
-	CreateAsCurrent(ctx context.Context, input domain.CreateOfferInput) (domain.Offer, error)
-	UpdateAsCurrent(ctx context.Context, id int64, input domain.UpdateOfferInput) (domain.Offer, error)
+	Create(ctx context.Context, input domain.CreateOfferInput, userID int64) (domain.Offer, error)
+	GetByID(ctx context.Context, id int64, userID int64) (domain.Offer, error)
+	List(ctx context.Context, userID int64) ([]domain.Offer, error)
+	Update(ctx context.Context, id int64, input domain.UpdateOfferInput, userID int64) (domain.Offer, error)
+	Delete(ctx context.Context, id int64, userID int64) error
+	CreateAsCurrent(ctx context.Context, input domain.CreateOfferInput, userID int64) (domain.Offer, error)
+	UpdateAsCurrent(ctx context.Context, id int64, input domain.UpdateOfferInput, userID int64) (domain.Offer, error)
 }
 
 // OfferService orchestrates offer operations.
@@ -39,57 +37,53 @@ func NewOfferService(repo offerRepo) *OfferService {
 	return &OfferService{repo: repo}
 }
 
-// CreateOffer validates and creates a new offer.
-// If input.IsCurrent is true, the unset of the previous current offer and the insert are
-// performed atomically via CreateAsCurrent to avoid leaving the database in an inconsistent state.
-func (s *OfferService) CreateOffer(ctx context.Context, input domain.CreateOfferInput) (domain.Offer, error) {
+// CreateOffer validates and creates a new offer scoped to userID.
+func (s *OfferService) CreateOffer(ctx context.Context, input domain.CreateOfferInput, userID int64) (domain.Offer, error) {
 	if err := validateOfferInput(input.Name, input.Provider, input.EnergyPricePeakKWh, input.EnergyPriceMidKWh, input.EnergyPriceValleyKWh, input.PowerTermPricePeak, input.PowerTermPriceValley, input.SurplusCompensation, input.HasPermanence, input.PermanenceMonths); err != nil {
 		return domain.Offer{}, fmt.Errorf("%w: %s", ErrInvalidInput, err)
 	}
 	if input.IsCurrent {
-		return s.repo.CreateAsCurrent(ctx, input)
+		return s.repo.CreateAsCurrent(ctx, input, userID)
 	}
-	return s.repo.Create(ctx, input)
+	return s.repo.Create(ctx, input, userID)
 }
 
-// GetOffer retrieves a single offer by ID.
-func (s *OfferService) GetOffer(ctx context.Context, id int64) (domain.Offer, error) {
-	offer, err := s.repo.GetByID(ctx, id)
+// GetOffer retrieves a single offer by ID, scoped to userID.
+func (s *OfferService) GetOffer(ctx context.Context, id int64, userID int64) (domain.Offer, error) {
+	offer, err := s.repo.GetByID(ctx, id, userID)
 	if errors.Is(err, repository.ErrOfferNotFound) {
 		return domain.Offer{}, ErrOfferNotFound
 	}
 	return offer, err
 }
 
-// ListOffers returns all offers.
-func (s *OfferService) ListOffers(ctx context.Context) ([]domain.Offer, error) {
-	return s.repo.List(ctx)
+// ListOffers returns all offers for the given userID.
+func (s *OfferService) ListOffers(ctx context.Context, userID int64) ([]domain.Offer, error) {
+	return s.repo.List(ctx, userID)
 }
 
-// UpdateOffer validates and updates an existing offer.
-// If input.IsCurrent is true, the unset of the previous current offer and the update are
-// performed atomically via UpdateAsCurrent to avoid leaving the database in an inconsistent state.
-func (s *OfferService) UpdateOffer(ctx context.Context, id int64, input domain.UpdateOfferInput) (domain.Offer, error) {
+// UpdateOffer validates and updates an existing offer scoped to userID.
+func (s *OfferService) UpdateOffer(ctx context.Context, id int64, input domain.UpdateOfferInput, userID int64) (domain.Offer, error) {
 	if err := validateOfferInput(input.Name, input.Provider, input.EnergyPricePeakKWh, input.EnergyPriceMidKWh, input.EnergyPriceValleyKWh, input.PowerTermPricePeak, input.PowerTermPriceValley, input.SurplusCompensation, input.HasPermanence, input.PermanenceMonths); err != nil {
 		return domain.Offer{}, fmt.Errorf("%w: %s", ErrInvalidInput, err)
 	}
 	if input.IsCurrent {
-		offer, err := s.repo.UpdateAsCurrent(ctx, id, input)
+		offer, err := s.repo.UpdateAsCurrent(ctx, id, input, userID)
 		if errors.Is(err, repository.ErrOfferNotFound) {
 			return domain.Offer{}, ErrOfferNotFound
 		}
 		return offer, err
 	}
-	offer, err := s.repo.Update(ctx, id, input)
+	offer, err := s.repo.Update(ctx, id, input, userID)
 	if errors.Is(err, repository.ErrOfferNotFound) {
 		return domain.Offer{}, ErrOfferNotFound
 	}
 	return offer, err
 }
 
-// DeleteOffer removes an offer by ID.
-func (s *OfferService) DeleteOffer(ctx context.Context, id int64) error {
-	err := s.repo.Delete(ctx, id)
+// DeleteOffer removes an offer by ID, scoped to userID.
+func (s *OfferService) DeleteOffer(ctx context.Context, id int64, userID int64) error {
+	err := s.repo.Delete(ctx, id, userID)
 	if errors.Is(err, repository.ErrOfferNotFound) {
 		return ErrOfferNotFound
 	}

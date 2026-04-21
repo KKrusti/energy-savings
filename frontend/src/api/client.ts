@@ -8,12 +8,36 @@ import type {
 } from '@/types'
 
 const BASE = '/api'
+const TOKEN_KEY = 'auth_token'
+
+export function getStoredToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY)
+}
+
+export function setStoredToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token)
+}
+
+export function clearStoredToken(): void {
+  localStorage.removeItem(TOKEN_KEY)
+}
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  const token = getStoredToken()
   const res = await fetch(`${BASE}${url}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init?.headers as Record<string, string> | undefined),
+    },
   })
+
+  if (res.status === 401) {
+    window.dispatchEvent(new Event('auth:expired'))
+    throw new Error('Sesión expirada')
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error(body.error ?? res.statusText)

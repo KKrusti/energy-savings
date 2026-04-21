@@ -1,0 +1,107 @@
+// Package auth provides password hashing and JWT utilities.
+package auth
+
+import (
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"log"
+	"os"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
+)
+
+const (
+	tokenTTL     = 24 * time.Hour
+	bcryptCost   = 12
+	jwtSecretEnv = "JWT_SECRET"
+	minSecretLen = 32
+)
+
+func jwtSecret() []byte {
+	s := os.Getenv(jwtSecretEnv)
+	if s == "" {
+		log.Fatalf("auth: %s is required but not set", jwtSecretEnv)
+	}
+	if len(s) < minSecretLen {
+		log.Fatalf("auth: %s must be at least %d characters (got %d)", jwtSecretEnv, minSecretLen, len(s))
+	}
+	return []byte(s)
+}
+
+// HashPassword returns a bcrypt hash of the plain-text password.
+func HashPassword(plain string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(plain), bcryptCost)
+	if err != nil {
+		return "", fmt.Errorf("hash password: %w", err)
+	}
+	return string(hash), nil
+}
+
+// CheckPassword returns nil when plain matches the stored bcrypt hash.
+func CheckPassword(plain, hash string) error {
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(plain))
+}
+
+type claims struct {
+	UserID  int64 `json:"uid"`
+	IsAdmin bool  `json:"adm"`
+	jwt.RegisteredClaims
+}
+
+func generateJTI() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generate jti: %w", err)
+	}
+	return hex.EncodeToString(b), nil
+}
+
+// GenerateToken creates a signed JWT for the given user ID, valid for 24 hours.
+func GenerateToken(userID int64, isAdmin bool) (string, error) {
+	jti, err := generateJTI()
+	if err != nil {
+		return "", err
+	}
+	now := time.Now()
+	c := claims{
+		UserID:  userID,
+		IsAdmin: isAdmin,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        jti,
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(tokenTTL)),
+		},
+	}
+	tok, err := jwt.NewWithClaims(jwt.SigningMethodHS256, c).SignedString(jwtSecret())
+	if err != nil {
+		return "", fmt.Errorf("sign token: %w", err)
+	}
+	return tok, nil
+}
+
+// ValidateToken parses and validates a JWT, returning the user ID, admin flag,
+// JTI (used for revocation), and expiry time on success.
+func ValidateToken(tokenStr string) (userID int64, isAdmin bool, jti string, expiresAt time.Time, err error) {
+	tok, err := jwt.ParseWithClaims(tokenStr, &claims{}, func(t *jwt.Token) (any, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		}
+		return jwtSecret(), nil
+	})
+	if err != nil {
+		return 0, false, "", time.Time{}, fmt.Errorf("parse token: %w", err)
+	}
+	c, ok := tok.Claims.(*claims)
+	if !ok || !tok.Valid {
+		return 0, false, "", time.Time{}, errors.New("invalid token claims")
+	}
+	var exp time.Time
+	if c.ExpiresAt != nil {
+		exp = c.ExpiresAt.Time
+	}
+	return c.UserID, c.IsAdmin, c.RegisteredClaims.ID, exp, nil
+}

@@ -53,9 +53,8 @@ func scanOffer(row interface {
 	return o, nil
 }
 
-// Create inserts a new offer and returns it with its generated ID and timestamps.
-// The caller is responsible for clearing is_current on other rows before calling this method.
-func (r *OfferRepository) Create(ctx context.Context, input domain.CreateOfferInput) (domain.Offer, error) {
+// Create inserts a new offer scoped to userID and returns it with generated ID and timestamps.
+func (r *OfferRepository) Create(ctx context.Context, input domain.CreateOfferInput, userID int64) (domain.Offer, error) {
 	const q = `
 		INSERT INTO offers (
 			name, provider,
@@ -63,8 +62,8 @@ func (r *OfferRepository) Create(ctx context.Context, input domain.CreateOfferIn
 			power_term_same_price, power_term_price_peak, power_term_price_valley,
 			surplus_compensation,
 			has_permanence, permanence_months,
-			is_green_energy, notes, is_current
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+			is_green_energy, notes, is_current, user_id
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
 		RETURNING ` + selectCols
 
 	row := r.db.QueryRowContext(ctx, q,
@@ -73,7 +72,7 @@ func (r *OfferRepository) Create(ctx context.Context, input domain.CreateOfferIn
 		input.PowerTermSamePrice, input.PowerTermPricePeak, input.PowerTermPriceValley,
 		input.SurplusCompensation,
 		input.HasPermanence, input.PermanenceMonths,
-		input.IsGreenEnergy, input.Notes, input.IsCurrent,
+		input.IsGreenEnergy, input.Notes, input.IsCurrent, userID,
 	)
 	o, err := scanOffer(row)
 	if err != nil {
@@ -82,10 +81,10 @@ func (r *OfferRepository) Create(ctx context.Context, input domain.CreateOfferIn
 	return o, nil
 }
 
-// GetByID returns the offer with the given ID or ErrOfferNotFound.
-func (r *OfferRepository) GetByID(ctx context.Context, id int64) (domain.Offer, error) {
-	q := `SELECT ` + selectCols + ` FROM offers WHERE id = $1`
-	o, err := scanOffer(r.db.QueryRowContext(ctx, q, id))
+// GetByID returns the offer with the given ID scoped to userID, or ErrOfferNotFound.
+func (r *OfferRepository) GetByID(ctx context.Context, id int64, userID int64) (domain.Offer, error) {
+	q := `SELECT ` + selectCols + ` FROM offers WHERE id = $1 AND user_id = $2`
+	o, err := scanOffer(r.db.QueryRowContext(ctx, q, id, userID))
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.Offer{}, ErrOfferNotFound
 	}
@@ -95,10 +94,10 @@ func (r *OfferRepository) GetByID(ctx context.Context, id int64) (domain.Offer, 
 	return o, nil
 }
 
-// List returns all offers ordered by creation date descending.
-func (r *OfferRepository) List(ctx context.Context) ([]domain.Offer, error) {
-	q := `SELECT ` + selectCols + ` FROM offers ORDER BY created_at DESC`
-	rows, err := r.db.QueryContext(ctx, q)
+// List returns all offers for the given userID ordered by creation date descending.
+func (r *OfferRepository) List(ctx context.Context, userID int64) ([]domain.Offer, error) {
+	q := `SELECT ` + selectCols + ` FROM offers WHERE user_id = $1 ORDER BY created_at DESC`
+	rows, err := r.db.QueryContext(ctx, q, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list offers: %w", err)
 	}
@@ -115,9 +114,8 @@ func (r *OfferRepository) List(ctx context.Context) ([]domain.Offer, error) {
 	return offers, rows.Err()
 }
 
-// Update modifies an existing offer. Returns ErrOfferNotFound if it does not exist.
-// The caller is responsible for clearing is_current on other rows before calling this method.
-func (r *OfferRepository) Update(ctx context.Context, id int64, input domain.UpdateOfferInput) (domain.Offer, error) {
+// Update modifies an existing offer scoped to userID. Returns ErrOfferNotFound if it does not exist.
+func (r *OfferRepository) Update(ctx context.Context, id int64, input domain.UpdateOfferInput, userID int64) (domain.Offer, error) {
 	const q = `
 		UPDATE offers SET
 			name=$1, provider=$2,
@@ -126,7 +124,7 @@ func (r *OfferRepository) Update(ctx context.Context, id int64, input domain.Upd
 			surplus_compensation=$10,
 			has_permanence=$11, permanence_months=$12,
 			is_green_energy=$13, notes=$14, is_current=$15
-		WHERE id=$16`
+		WHERE id=$16 AND user_id=$17`
 
 	res, err := r.db.ExecContext(ctx, q,
 		input.Name, input.Provider,
@@ -135,7 +133,7 @@ func (r *OfferRepository) Update(ctx context.Context, id int64, input domain.Upd
 		input.SurplusCompensation,
 		input.HasPermanence, input.PermanenceMonths,
 		input.IsGreenEnergy, input.Notes, input.IsCurrent,
-		id,
+		id, userID,
 	)
 	if err != nil {
 		return domain.Offer{}, fmt.Errorf("update offer: %w", err)
@@ -144,12 +142,12 @@ func (r *OfferRepository) Update(ctx context.Context, id int64, input domain.Upd
 	if n == 0 {
 		return domain.Offer{}, ErrOfferNotFound
 	}
-	return r.GetByID(ctx, id)
+	return r.GetByID(ctx, id, userID)
 }
 
-// Delete removes an offer by ID. Returns ErrOfferNotFound if it does not exist.
-func (r *OfferRepository) Delete(ctx context.Context, id int64) error {
-	res, err := r.db.ExecContext(ctx, `DELETE FROM offers WHERE id = $1`, id)
+// Delete removes an offer by ID scoped to userID. Returns ErrOfferNotFound if it does not exist.
+func (r *OfferRepository) Delete(ctx context.Context, id int64, userID int64) error {
+	res, err := r.db.ExecContext(ctx, `DELETE FROM offers WHERE id = $1 AND user_id = $2`, id, userID)
 	if err != nil {
 		return fmt.Errorf("delete offer: %w", err)
 	}
@@ -160,26 +158,24 @@ func (r *OfferRepository) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// UnsetCurrent clears the is_current flag on all offers.
-// This should be called within the same logical operation before marking a new current offer.
-func (r *OfferRepository) UnsetCurrent(ctx context.Context) error {
-	_, err := r.db.ExecContext(ctx, `UPDATE offers SET is_current = FALSE WHERE is_current = TRUE`)
+// UnsetCurrent clears the is_current flag on all offers for the given userID.
+func (r *OfferRepository) UnsetCurrent(ctx context.Context, userID int64) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE offers SET is_current = FALSE WHERE is_current = TRUE AND user_id = $1`, userID)
 	if err != nil {
 		return fmt.Errorf("unset current offer: %w", err)
 	}
 	return nil
 }
 
-// CreateAsCurrent unsets any current offer and creates the new one atomically in a single
-// transaction, preventing the race condition where a partial failure would leave no current offer.
-func (r *OfferRepository) CreateAsCurrent(ctx context.Context, input domain.CreateOfferInput) (domain.Offer, error) {
+// CreateAsCurrent unsets any current offer for userID and creates the new one atomically.
+func (r *OfferRepository) CreateAsCurrent(ctx context.Context, input domain.CreateOfferInput, userID int64) (domain.Offer, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return domain.Offer{}, fmt.Errorf("begin create-as-current transaction: %w", err)
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	if _, err := tx.ExecContext(ctx, `UPDATE offers SET is_current = FALSE WHERE is_current = TRUE`); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE offers SET is_current = FALSE WHERE is_current = TRUE AND user_id = $1`, userID); err != nil {
 		return domain.Offer{}, fmt.Errorf("unset current offer: %w", err)
 	}
 
@@ -190,8 +186,8 @@ func (r *OfferRepository) CreateAsCurrent(ctx context.Context, input domain.Crea
 			power_term_same_price, power_term_price_peak, power_term_price_valley,
 			surplus_compensation,
 			has_permanence, permanence_months,
-			is_green_energy, notes, is_current
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+			is_green_energy, notes, is_current, user_id
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
 		RETURNING ` + selectCols
 
 	row := tx.QueryRowContext(ctx, q,
@@ -200,7 +196,7 @@ func (r *OfferRepository) CreateAsCurrent(ctx context.Context, input domain.Crea
 		input.PowerTermSamePrice, input.PowerTermPricePeak, input.PowerTermPriceValley,
 		input.SurplusCompensation,
 		input.HasPermanence, input.PermanenceMonths,
-		input.IsGreenEnergy, input.Notes, input.IsCurrent,
+		input.IsGreenEnergy, input.Notes, input.IsCurrent, userID,
 	)
 	o, err := scanOffer(row)
 	if err != nil {
@@ -213,16 +209,15 @@ func (r *OfferRepository) CreateAsCurrent(ctx context.Context, input domain.Crea
 	return o, nil
 }
 
-// UpdateAsCurrent unsets any current offer and updates the target offer atomically in a single
-// transaction, preventing the race condition where a partial failure would leave no current offer.
-func (r *OfferRepository) UpdateAsCurrent(ctx context.Context, id int64, input domain.UpdateOfferInput) (domain.Offer, error) {
+// UpdateAsCurrent unsets any current offer for userID and updates the target offer atomically.
+func (r *OfferRepository) UpdateAsCurrent(ctx context.Context, id int64, input domain.UpdateOfferInput, userID int64) (domain.Offer, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return domain.Offer{}, fmt.Errorf("begin update-as-current transaction: %w", err)
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	if _, err := tx.ExecContext(ctx, `UPDATE offers SET is_current = FALSE WHERE is_current = TRUE`); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE offers SET is_current = FALSE WHERE is_current = TRUE AND user_id = $1`, userID); err != nil {
 		return domain.Offer{}, fmt.Errorf("unset current offer: %w", err)
 	}
 
@@ -234,7 +229,7 @@ func (r *OfferRepository) UpdateAsCurrent(ctx context.Context, id int64, input d
 			surplus_compensation=$10,
 			has_permanence=$11, permanence_months=$12,
 			is_green_energy=$13, notes=$14, is_current=$15
-		WHERE id=$16`
+		WHERE id=$16 AND user_id=$17`
 
 	res, err := tx.ExecContext(ctx, q,
 		input.Name, input.Provider,
@@ -243,7 +238,7 @@ func (r *OfferRepository) UpdateAsCurrent(ctx context.Context, id int64, input d
 		input.SurplusCompensation,
 		input.HasPermanence, input.PermanenceMonths,
 		input.IsGreenEnergy, input.Notes, input.IsCurrent,
-		id,
+		id, userID,
 	)
 	if err != nil {
 		return domain.Offer{}, fmt.Errorf("update offer: %w", err)
@@ -253,8 +248,8 @@ func (r *OfferRepository) UpdateAsCurrent(ctx context.Context, id int64, input d
 		return domain.Offer{}, ErrOfferNotFound
 	}
 
-	q2 := `SELECT ` + selectCols + ` FROM offers WHERE id = $1`
-	o, err := scanOffer(tx.QueryRowContext(ctx, q2, id))
+	q2 := `SELECT ` + selectCols + ` FROM offers WHERE id = $1 AND user_id = $2`
+	o, err := scanOffer(tx.QueryRowContext(ctx, q2, id, userID))
 	if err != nil {
 		return domain.Offer{}, fmt.Errorf("read updated offer: %w", err)
 	}

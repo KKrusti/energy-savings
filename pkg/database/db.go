@@ -117,6 +117,28 @@ var migrations = []migration{
 			`ALTER TABLE offers ADD COLUMN IF NOT EXISTS is_current BOOLEAN NOT NULL DEFAULT FALSE`,
 		},
 	},
+	{
+		version: 5,
+		stmts: []string{
+			`CREATE TABLE IF NOT EXISTS users (
+				id            BIGSERIAL    PRIMARY KEY,
+				username      TEXT         NOT NULL UNIQUE,
+				email         TEXT         NOT NULL UNIQUE,
+				password_hash TEXT         NOT NULL,
+				is_admin      BOOLEAN      NOT NULL DEFAULT FALSE,
+				created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+			)`,
+			`CREATE TABLE IF NOT EXISTS revoked_tokens (
+				jti        TEXT        PRIMARY KEY,
+				expires_at TIMESTAMPTZ NOT NULL
+			)`,
+			`ALTER TABLE offers ADD COLUMN IF NOT EXISTS user_id BIGINT REFERENCES users(id) ON DELETE CASCADE`,
+			`ALTER TABLE consumption_history ADD COLUMN IF NOT EXISTS user_id BIGINT REFERENCES users(id) ON DELETE CASCADE`,
+			`ALTER TABLE consumption_history DROP CONSTRAINT IF EXISTS consumption_history_month_year_key`,
+			`CREATE UNIQUE INDEX IF NOT EXISTS consumption_history_user_month_year_idx
+				ON consumption_history (user_id, month, year) NULLS NOT DISTINCT`,
+		},
+	},
 }
 
 func migrate(ctx context.Context, db *sql.DB) error {

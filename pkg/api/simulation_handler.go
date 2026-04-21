@@ -12,8 +12,8 @@ import (
 
 // simulationService is the interface SimulationHandler depends on.
 type simulationService interface {
-	ListOffers(ctx context.Context) ([]domain.Offer, error)
-	GetOffer(ctx context.Context, id int64) (domain.Offer, error)
+	ListOffers(ctx context.Context, userID int64) ([]domain.Offer, error)
+	GetOffer(ctx context.Context, id int64, userID int64) (domain.Offer, error)
 }
 
 // calculator is the interface for bill computation.
@@ -35,7 +35,6 @@ func NewSimulationHandler(offerSvc simulationService, calc calculator) *Simulati
 }
 
 // Simulate godoc - POST /api/simulate
-// If offer_id == 0 it simulates all registered offers.
 func (h *SimulationHandler) Simulate(w http.ResponseWriter, r *http.Request) {
 	var req domain.SimulationRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -53,9 +52,10 @@ func (h *SimulationHandler) Simulate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+	userID := UserIDFromContext(ctx)
 
 	if req.OfferID != 0 {
-		offer, err := h.offerSvc.GetOffer(ctx, req.OfferID)
+		offer, err := h.offerSvc.GetOffer(ctx, req.OfferID, userID)
 		if errors.Is(err, service.ErrOfferNotFound) {
 			writeError(w, http.StatusNotFound, "oferta no encontrada")
 			return
@@ -69,7 +69,7 @@ func (h *SimulationHandler) Simulate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	offers, err := h.offerSvc.ListOffers(ctx)
+	offers, err := h.offerSvc.ListOffers(ctx, userID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "error al obtener ofertas")
 		return
@@ -84,7 +84,6 @@ func (h *SimulationHandler) Simulate(w http.ResponseWriter, r *http.Request) {
 }
 
 // SimulateAnnual godoc - POST /api/simulate/annual
-// Accepts up to 12 months of tiered consumption data and returns per-offer annual results.
 func (h *SimulationHandler) SimulateAnnual(w http.ResponseWriter, r *http.Request) {
 	var req domain.AnnualSimulationRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -101,9 +100,6 @@ func (h *SimulationHandler) SimulateAnnual(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// currentYear is resolved once here so it can be easily overridden in tests via
-	// a request field in the future. Using time.Now() in the handler is acceptable for
-	// a simple year-fallback, but it is isolated to a single assignment.
 	currentYear := time.Now().Year()
 
 	for i, m := range req.Months {
@@ -111,7 +107,6 @@ func (h *SimulationHandler) SimulateAnnual(w http.ResponseWriter, r *http.Reques
 			writeError(w, status, msg)
 			return
 		}
-		// Derive billing days automatically from the calendar month/year.
 		year := m.Year
 		if year == 0 {
 			year = currentYear
@@ -120,7 +115,9 @@ func (h *SimulationHandler) SimulateAnnual(w http.ResponseWriter, r *http.Reques
 	}
 
 	ctx := r.Context()
-	offers, err := h.offerSvc.ListOffers(ctx)
+	userID := UserIDFromContext(ctx)
+
+	offers, err := h.offerSvc.ListOffers(ctx, userID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "error al obtener ofertas")
 		return
