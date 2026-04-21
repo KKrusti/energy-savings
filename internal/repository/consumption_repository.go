@@ -8,7 +8,7 @@ import (
 	"github.com/carlos/energy-savings/internal/domain"
 )
 
-// ConsumptionRepository persists monthly consumption history to SQLite.
+// ConsumptionRepository persists monthly consumption history to PostgreSQL.
 type ConsumptionRepository struct {
 	db *sql.DB
 }
@@ -30,15 +30,15 @@ func (r *ConsumptionRepository) Upsert(ctx context.Context, months []domain.Mont
 	const q = `
 		INSERT INTO consumption_history
 			(month, year, peak_kwh, mid_kwh, valley_kwh, power_peak_kw, power_valley_kw, surplus_kwh)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (month, year) DO UPDATE SET
-			peak_kwh        = excluded.peak_kwh,
-			mid_kwh         = excluded.mid_kwh,
-			valley_kwh      = excluded.valley_kwh,
-			power_peak_kw   = excluded.power_peak_kw,
-			power_valley_kw = excluded.power_valley_kw,
-			surplus_kwh     = excluded.surplus_kwh,
-			updated_at      = CURRENT_TIMESTAMP`
+			peak_kwh        = EXCLUDED.peak_kwh,
+			mid_kwh         = EXCLUDED.mid_kwh,
+			valley_kwh      = EXCLUDED.valley_kwh,
+			power_peak_kw   = EXCLUDED.power_peak_kw,
+			power_valley_kw = EXCLUDED.power_valley_kw,
+			surplus_kwh     = EXCLUDED.surplus_kwh,
+			updated_at      = NOW()`
 
 	for _, m := range months {
 		if _, err := tx.ExecContext(ctx, q,

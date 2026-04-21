@@ -2,6 +2,7 @@ package repository_test
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/carlos/energy-savings/internal/database"
@@ -13,8 +14,14 @@ import (
 
 func newTestRepo(t *testing.T) *repository.OfferRepository {
 	t.Helper()
+	connStr := os.Getenv("DATABASE_URL")
+	if connStr == "" {
+		t.Skip("DATABASE_URL not set; skipping integration test")
+	}
 	ctx := context.Background()
-	db, err := database.Open(ctx, ":memory:")
+	db, err := database.Open(ctx, connStr)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `TRUNCATE TABLE offers, consumption_history RESTART IDENTITY CASCADE`)
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 	return repository.NewOfferRepository(db)

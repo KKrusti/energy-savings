@@ -16,8 +16,24 @@ Before writing any code, **read** the corresponding SKILL.md file and **print th
 |-----------|---------------|------|
 | Backend changes | `golang-pro` | `.claude/skills/golang-pro/SKILL.md` |
 | Frontend / UI changes | `vercel-react-best-practices` **+** `ui-ux-pro-max` | `.claude/skills/vercel-react-best-practices/SKILL.md` · `.claude/skills/ui-ux-pro-max/SKILL.md` |
+| Database / migrations / Neon | `neon-postgres` **+** `sqlite-database-expert` | (loaded via Skill tool) |
 
 `vercel-react-best-practices` and `ui-ux-pro-max` are complementary and must always be loaded together for any frontend or UI work.
+
+### When to load database skills
+
+Load **`neon-postgres`** when:
+- Writing or modifying database migrations (`internal/database/db.go`)
+- Changing SQL queries in repositories (`internal/repository/`)
+- Configuring Neon connection strings, pooling, or Neon-specific features
+- Debugging connection issues, cold-start latency, or `DATABASE_URL` setup
+
+Load **`sqlite-database-expert`** alongside `neon-postgres` when:
+- Writing new migrations (for SQL injection prevention, idempotency, and safe DDL patterns)
+- Reviewing any raw SQL for security best practices
+- Designing schema changes that involve constraints, indexes, or triggers
+
+Both skills must be loaded together for any database schema or migration work.
 
 **This is mandatory and non-negotiable.** The user explicitly requires seeing `[skill: <name>]` printed in the response to verify correct skill usage.
 
@@ -49,7 +65,7 @@ cd frontend && npx vitest run src/components/__tests__/OfferCard.test.tsx
 
 ### Server environment variables
 - `ADDR` — listen address (default `:8080`)
-- `DB_PATH` — SQLite file path (default `energy-savings.db`, use `:memory:` in tests)
+- `DATABASE_URL` — Neon PostgreSQL connection string (required; use pooler URL for production)
 - `CORS_ALLOWED_ORIGINS` — comma-separated allowed origins (e.g. `http://localhost:5173`); empty disables CORS
 
 ### WSL environment
@@ -93,7 +109,7 @@ frontend/src/
 ```
 
 ### Backend dependency flow
-`main` → `api.Handler` → `service` → `repository` → `database/sql (SQLite)`
+`main` / `api/index.go` → `api.Handler` → `service` → `repository` → `database/sql (Neon PostgreSQL)`
 
 Interfaces (`offerRepo`, `offerService`, `calculator`) are defined on the consumer side to enable in-process mocks in tests.
 
@@ -112,7 +128,11 @@ The constants (`ElectricityTaxRate`, `IVARate`, `MeterRentalDailyRate`) are expo
 `CalculatorService.CalculateAnnual` accepts up to 12 `MonthlyConsumption` entries. Billing days are derived server-side from `Month`+`Year` (the `Days` field is tagged `json:"-"` and never sent by the client). Results are `AnnualOfferResult` per offer, each containing `[]MonthlyBillBreakdown` and a `YearTotal`. The last result is cached client-side in `useLastAnnualSimulation` (React Query) so charts survive navigation. Consumption history is persisted via `PUT /api/consumption/history` (upsert by month+year) and restored on load.
 
 ### Database
-SQLite via `modernc.org/sqlite` (pure Go, no CGO). Schema migration runs on startup inside `database.Open`. Schema defined in `internal/database/db.go`.
+Neon PostgreSQL via `github.com/jackc/pgx/v5/stdlib`. Schema migration runs on startup inside `database.Open` using a `schema_migrations` table to track applied versions. Schema defined in `internal/database/db.go`.
+
+Production and Vercel deployments use `DATABASE_URL` from environment variables. Use the `-pooler` Neon hostname for serverless environments to avoid connection exhaustion.
+
+For local development, set `DATABASE_URL` to a Neon dev branch or local PostgreSQL connection string. Repository integration tests skip automatically if `DATABASE_URL` is not set.
 
 ### Frontend design system
 Glassmorphism on `#0F172A` background, amber/gold primary (`#F59E0B`), violet CTA (`#8B5CF6`), Plus Jakarta Sans typeface. Configured in `tailwind.config.js`.
@@ -121,5 +141,5 @@ Glassmorphism on `#0F172A` background, amber/gold primary (`#F59E0B`), violet CT
 
 ## Test conventions
 
-- **Go**: table-driven tests (`[]struct{ ... }`), subtests with `t.Run`, always `-race`. Repository tests use SQLite `:memory:`. Services use in-process mocks.
+- **Go**: table-driven tests (`[]struct{ ... }`), subtests with `t.Run`, always `-race`. Repository tests require `DATABASE_URL` (skipped if not set) and truncate tables at setup for isolation. Services use in-process mocks.
 - **Frontend**: Vitest + Testing Library. One `__tests__/` file per component. Do not mock fetch directly — use `vi.fn()` on hooks when needed.

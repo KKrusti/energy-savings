@@ -39,23 +39,17 @@ func scanOffer(row interface {
 	Scan(...any) error
 }) (domain.Offer, error) {
 	var o domain.Offer
-	var energyFlat, powerSame, greenInt, permanenceInt, isCurrentInt int
 	err := row.Scan(
 		&o.ID, &o.Name, &o.Provider,
-		&energyFlat, &o.EnergyPricePeakKWh, &o.EnergyPriceMidKWh, &o.EnergyPriceValleyKWh,
-		&powerSame, &o.PowerTermPricePeak, &o.PowerTermPriceValley,
+		&o.EnergyPriceFlat, &o.EnergyPricePeakKWh, &o.EnergyPriceMidKWh, &o.EnergyPriceValleyKWh,
+		&o.PowerTermSamePrice, &o.PowerTermPricePeak, &o.PowerTermPriceValley,
 		&o.SurplusCompensation,
-		&permanenceInt, &o.PermanenceMonths,
-		&greenInt, &o.Notes, &isCurrentInt, &o.CreatedAt, &o.UpdatedAt,
+		&o.HasPermanence, &o.PermanenceMonths,
+		&o.IsGreenEnergy, &o.Notes, &o.IsCurrent, &o.CreatedAt, &o.UpdatedAt,
 	)
 	if err != nil {
 		return domain.Offer{}, err
 	}
-	o.EnergyPriceFlat = energyFlat != 0
-	o.PowerTermSamePrice = powerSame != 0
-	o.IsGreenEnergy = greenInt != 0
-	o.HasPermanence = permanenceInt != 0
-	o.IsCurrent = isCurrentInt != 0
 	return o, nil
 }
 
@@ -70,16 +64,16 @@ func (r *OfferRepository) Create(ctx context.Context, input domain.CreateOfferIn
 			surplus_compensation,
 			has_permanence, permanence_months,
 			is_green_energy, notes, is_current
-		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
 		RETURNING ` + selectCols
 
 	row := r.db.QueryRowContext(ctx, q,
 		input.Name, input.Provider,
-		boolToInt(input.EnergyPriceFlat), input.EnergyPricePeakKWh, input.EnergyPriceMidKWh, input.EnergyPriceValleyKWh,
-		boolToInt(input.PowerTermSamePrice), input.PowerTermPricePeak, input.PowerTermPriceValley,
+		input.EnergyPriceFlat, input.EnergyPricePeakKWh, input.EnergyPriceMidKWh, input.EnergyPriceValleyKWh,
+		input.PowerTermSamePrice, input.PowerTermPricePeak, input.PowerTermPriceValley,
 		input.SurplusCompensation,
-		boolToInt(input.HasPermanence), input.PermanenceMonths,
-		boolToInt(input.IsGreenEnergy), input.Notes, boolToInt(input.IsCurrent),
+		input.HasPermanence, input.PermanenceMonths,
+		input.IsGreenEnergy, input.Notes, input.IsCurrent,
 	)
 	o, err := scanOffer(row)
 	if err != nil {
@@ -90,7 +84,7 @@ func (r *OfferRepository) Create(ctx context.Context, input domain.CreateOfferIn
 
 // GetByID returns the offer with the given ID or ErrOfferNotFound.
 func (r *OfferRepository) GetByID(ctx context.Context, id int64) (domain.Offer, error) {
-	q := `SELECT ` + selectCols + ` FROM offers WHERE id = ?`
+	q := `SELECT ` + selectCols + ` FROM offers WHERE id = $1`
 	o, err := scanOffer(r.db.QueryRowContext(ctx, q, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.Offer{}, ErrOfferNotFound
@@ -126,21 +120,21 @@ func (r *OfferRepository) List(ctx context.Context) ([]domain.Offer, error) {
 func (r *OfferRepository) Update(ctx context.Context, id int64, input domain.UpdateOfferInput) (domain.Offer, error) {
 	const q = `
 		UPDATE offers SET
-			name=?, provider=?,
-			energy_price_flat=?, energy_price_peak_kwh=?, energy_price_mid_kwh=?, energy_price_valley_kwh=?,
-			power_term_same_price=?, power_term_price_peak=?, power_term_price_valley=?,
-			surplus_compensation=?,
-			has_permanence=?, permanence_months=?,
-			is_green_energy=?, notes=?, is_current=?
-		WHERE id=?`
+			name=$1, provider=$2,
+			energy_price_flat=$3, energy_price_peak_kwh=$4, energy_price_mid_kwh=$5, energy_price_valley_kwh=$6,
+			power_term_same_price=$7, power_term_price_peak=$8, power_term_price_valley=$9,
+			surplus_compensation=$10,
+			has_permanence=$11, permanence_months=$12,
+			is_green_energy=$13, notes=$14, is_current=$15
+		WHERE id=$16`
 
 	res, err := r.db.ExecContext(ctx, q,
 		input.Name, input.Provider,
-		boolToInt(input.EnergyPriceFlat), input.EnergyPricePeakKWh, input.EnergyPriceMidKWh, input.EnergyPriceValleyKWh,
-		boolToInt(input.PowerTermSamePrice), input.PowerTermPricePeak, input.PowerTermPriceValley,
+		input.EnergyPriceFlat, input.EnergyPricePeakKWh, input.EnergyPriceMidKWh, input.EnergyPriceValleyKWh,
+		input.PowerTermSamePrice, input.PowerTermPricePeak, input.PowerTermPriceValley,
 		input.SurplusCompensation,
-		boolToInt(input.HasPermanence), input.PermanenceMonths,
-		boolToInt(input.IsGreenEnergy), input.Notes, boolToInt(input.IsCurrent),
+		input.HasPermanence, input.PermanenceMonths,
+		input.IsGreenEnergy, input.Notes, input.IsCurrent,
 		id,
 	)
 	if err != nil {
@@ -155,7 +149,7 @@ func (r *OfferRepository) Update(ctx context.Context, id int64, input domain.Upd
 
 // Delete removes an offer by ID. Returns ErrOfferNotFound if it does not exist.
 func (r *OfferRepository) Delete(ctx context.Context, id int64) error {
-	res, err := r.db.ExecContext(ctx, `DELETE FROM offers WHERE id = ?`, id)
+	res, err := r.db.ExecContext(ctx, `DELETE FROM offers WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("delete offer: %w", err)
 	}
@@ -169,7 +163,7 @@ func (r *OfferRepository) Delete(ctx context.Context, id int64) error {
 // UnsetCurrent clears the is_current flag on all offers.
 // This should be called within the same logical operation before marking a new current offer.
 func (r *OfferRepository) UnsetCurrent(ctx context.Context) error {
-	_, err := r.db.ExecContext(ctx, `UPDATE offers SET is_current = 0 WHERE is_current = 1`)
+	_, err := r.db.ExecContext(ctx, `UPDATE offers SET is_current = FALSE WHERE is_current = TRUE`)
 	if err != nil {
 		return fmt.Errorf("unset current offer: %w", err)
 	}
@@ -185,7 +179,7 @@ func (r *OfferRepository) CreateAsCurrent(ctx context.Context, input domain.Crea
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	if _, err := tx.ExecContext(ctx, `UPDATE offers SET is_current = 0 WHERE is_current = 1`); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE offers SET is_current = FALSE WHERE is_current = TRUE`); err != nil {
 		return domain.Offer{}, fmt.Errorf("unset current offer: %w", err)
 	}
 
@@ -197,16 +191,16 @@ func (r *OfferRepository) CreateAsCurrent(ctx context.Context, input domain.Crea
 			surplus_compensation,
 			has_permanence, permanence_months,
 			is_green_energy, notes, is_current
-		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
 		RETURNING ` + selectCols
 
 	row := tx.QueryRowContext(ctx, q,
 		input.Name, input.Provider,
-		boolToInt(input.EnergyPriceFlat), input.EnergyPricePeakKWh, input.EnergyPriceMidKWh, input.EnergyPriceValleyKWh,
-		boolToInt(input.PowerTermSamePrice), input.PowerTermPricePeak, input.PowerTermPriceValley,
+		input.EnergyPriceFlat, input.EnergyPricePeakKWh, input.EnergyPriceMidKWh, input.EnergyPriceValleyKWh,
+		input.PowerTermSamePrice, input.PowerTermPricePeak, input.PowerTermPriceValley,
 		input.SurplusCompensation,
-		boolToInt(input.HasPermanence), input.PermanenceMonths,
-		boolToInt(input.IsGreenEnergy), input.Notes, boolToInt(input.IsCurrent),
+		input.HasPermanence, input.PermanenceMonths,
+		input.IsGreenEnergy, input.Notes, input.IsCurrent,
 	)
 	o, err := scanOffer(row)
 	if err != nil {
@@ -228,27 +222,27 @@ func (r *OfferRepository) UpdateAsCurrent(ctx context.Context, id int64, input d
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	if _, err := tx.ExecContext(ctx, `UPDATE offers SET is_current = 0 WHERE is_current = 1`); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE offers SET is_current = FALSE WHERE is_current = TRUE`); err != nil {
 		return domain.Offer{}, fmt.Errorf("unset current offer: %w", err)
 	}
 
 	const q = `
 		UPDATE offers SET
-			name=?, provider=?,
-			energy_price_flat=?, energy_price_peak_kwh=?, energy_price_mid_kwh=?, energy_price_valley_kwh=?,
-			power_term_same_price=?, power_term_price_peak=?, power_term_price_valley=?,
-			surplus_compensation=?,
-			has_permanence=?, permanence_months=?,
-			is_green_energy=?, notes=?, is_current=?
-		WHERE id=?`
+			name=$1, provider=$2,
+			energy_price_flat=$3, energy_price_peak_kwh=$4, energy_price_mid_kwh=$5, energy_price_valley_kwh=$6,
+			power_term_same_price=$7, power_term_price_peak=$8, power_term_price_valley=$9,
+			surplus_compensation=$10,
+			has_permanence=$11, permanence_months=$12,
+			is_green_energy=$13, notes=$14, is_current=$15
+		WHERE id=$16`
 
 	res, err := tx.ExecContext(ctx, q,
 		input.Name, input.Provider,
-		boolToInt(input.EnergyPriceFlat), input.EnergyPricePeakKWh, input.EnergyPriceMidKWh, input.EnergyPriceValleyKWh,
-		boolToInt(input.PowerTermSamePrice), input.PowerTermPricePeak, input.PowerTermPriceValley,
+		input.EnergyPriceFlat, input.EnergyPricePeakKWh, input.EnergyPriceMidKWh, input.EnergyPriceValleyKWh,
+		input.PowerTermSamePrice, input.PowerTermPricePeak, input.PowerTermPriceValley,
 		input.SurplusCompensation,
-		boolToInt(input.HasPermanence), input.PermanenceMonths,
-		boolToInt(input.IsGreenEnergy), input.Notes, boolToInt(input.IsCurrent),
+		input.HasPermanence, input.PermanenceMonths,
+		input.IsGreenEnergy, input.Notes, input.IsCurrent,
 		id,
 	)
 	if err != nil {
@@ -259,8 +253,7 @@ func (r *OfferRepository) UpdateAsCurrent(ctx context.Context, id int64, input d
 		return domain.Offer{}, ErrOfferNotFound
 	}
 
-	// Read back the updated row within the same transaction.
-	q2 := `SELECT ` + selectCols + ` FROM offers WHERE id = ?`
+	q2 := `SELECT ` + selectCols + ` FROM offers WHERE id = $1`
 	o, err := scanOffer(tx.QueryRowContext(ctx, q2, id))
 	if err != nil {
 		return domain.Offer{}, fmt.Errorf("read updated offer: %w", err)
@@ -270,11 +263,4 @@ func (r *OfferRepository) UpdateAsCurrent(ctx context.Context, id int64, input d
 		return domain.Offer{}, fmt.Errorf("commit update-as-current: %w", err)
 	}
 	return o, nil
-}
-
-func boolToInt(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
 }

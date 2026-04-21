@@ -1,36 +1,33 @@
-// Package database handles SQLite connection and schema migrations.
+// Package database handles PostgreSQL connection and schema migrations.
 package database
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strconv"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-// Open returns a configured *sql.DB backed by SQLite at the given path.
-// Use ":memory:" for in-memory databases (useful in tests).
-func Open(ctx context.Context, path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", path)
+// Open returns a configured *sql.DB backed by Neon PostgreSQL.
+// connStr must be a valid PostgreSQL connection string (e.g. from DATABASE_URL).
+func Open(ctx context.Context, connStr string) (*sql.DB, error) {
+	db, err := sql.Open("pgx", connStr)
 	if err != nil {
-		return nil, fmt.Errorf("open sqlite: %w", err)
+		return nil, fmt.Errorf("open postgres: %w", err)
 	}
 
-	db.SetMaxOpenConns(1) // SQLite supports only one writer at a time
-	db.SetMaxIdleConns(1)
+	// Conservative pool for serverless: short-lived instances share connections via Neon pooler.
+	db.SetMaxOpenConns(5)
+	db.SetMaxIdleConns(5)
 
 	if err := db.PingContext(ctx); err != nil {
-		return nil, fmt.Errorf("ping sqlite: %w", err)
-	}
-
-	// Enable WAL for better read/write concurrency and foreign-key enforcement.
-	if _, err := db.ExecContext(ctx, "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;"); err != nil {
-		return nil, fmt.Errorf("configure sqlite pragmas: %w", err)
+		db.Close()
+		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
 
 	if err := migrate(ctx, db); err != nil {
+		db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 
@@ -49,40 +46,41 @@ var migrations = []migration{
 		version: 1,
 		stmts: []string{
 			`CREATE TABLE IF NOT EXISTS offers (
-				id                   INTEGER  PRIMARY KEY AUTOINCREMENT,
-				name                 TEXT     NOT NULL,
-				provider             TEXT     NOT NULL,
-				energy_price_kwh     REAL     NOT NULL DEFAULT 0,
-				power_term_price     REAL     NOT NULL DEFAULT 0,
-				surplus_compensation REAL     NOT NULL DEFAULT 0,
-				is_green_energy      INTEGER  NOT NULL DEFAULT 0,
-				notes                TEXT     NOT NULL DEFAULT '',
-				created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				updated_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+				id                   BIGSERIAL        PRIMARY KEY,
+				name                 TEXT             NOT NULL,
+				provider             TEXT             NOT NULL,
+				energy_price_kwh     DOUBLE PRECISION NOT NULL DEFAULT 0,
+				power_term_price     DOUBLE PRECISION NOT NULL DEFAULT 0,
+				surplus_compensation DOUBLE PRECISION NOT NULL DEFAULT 0,
+				is_green_energy      BOOLEAN          NOT NULL DEFAULT FALSE,
+				notes                TEXT             NOT NULL DEFAULT '',
+				created_at           TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
+				updated_at           TIMESTAMPTZ      NOT NULL DEFAULT NOW()
 			)`,
-			`CREATE TRIGGER IF NOT EXISTS offers_updated_at
-				AFTER UPDATE ON offers
-				BEGIN
-					UPDATE offers SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-				END`,
+			`CREATE OR REPLACE FUNCTION update_updated_at()
+			RETURNS TRIGGER AS $$
+			BEGIN
+				NEW.updated_at = NOW();
+				RETURN NEW;
+			END;
+			$$ LANGUAGE plpgsql`,
+			`CREATE OR REPLACE TRIGGER offers_updated_at
+				BEFORE UPDATE ON offers
+				FOR EACH ROW EXECUTE FUNCTION update_updated_at()`,
 		},
 	},
 	{
 		version: 2,
 		stmts: []string{
-			// Energy tiered pricing
-			`ALTER TABLE offers ADD COLUMN energy_price_flat      INTEGER NOT NULL DEFAULT 1`,
-			`ALTER TABLE offers ADD COLUMN energy_price_peak_kwh  REAL    NOT NULL DEFAULT 0`,
-			`ALTER TABLE offers ADD COLUMN energy_price_mid_kwh   REAL    NOT NULL DEFAULT 0`,
-			`ALTER TABLE offers ADD COLUMN energy_price_valley_kwh REAL   NOT NULL DEFAULT 0`,
-			// Power tiered pricing
-			`ALTER TABLE offers ADD COLUMN power_term_same_price   INTEGER NOT NULL DEFAULT 1`,
-			`ALTER TABLE offers ADD COLUMN power_term_price_peak   REAL    NOT NULL DEFAULT 0`,
-			`ALTER TABLE offers ADD COLUMN power_term_price_valley REAL    NOT NULL DEFAULT 0`,
-			// Permanence
-			`ALTER TABLE offers ADD COLUMN has_permanence     INTEGER NOT NULL DEFAULT 0`,
-			`ALTER TABLE offers ADD COLUMN permanence_months  INTEGER NOT NULL DEFAULT 0`,
-			// Migrate existing rows: copy legacy single-price fields into the new columns
+			`ALTER TABLE offers ADD COLUMN IF NOT EXISTS energy_price_flat       BOOLEAN          NOT NULL DEFAULT TRUE`,
+			`ALTER TABLE offers ADD COLUMN IF NOT EXISTS energy_price_peak_kwh   DOUBLE PRECISION NOT NULL DEFAULT 0`,
+			`ALTER TABLE offers ADD COLUMN IF NOT EXISTS energy_price_mid_kwh    DOUBLE PRECISION NOT NULL DEFAULT 0`,
+			`ALTER TABLE offers ADD COLUMN IF NOT EXISTS energy_price_valley_kwh DOUBLE PRECISION NOT NULL DEFAULT 0`,
+			`ALTER TABLE offers ADD COLUMN IF NOT EXISTS power_term_same_price   BOOLEAN          NOT NULL DEFAULT TRUE`,
+			`ALTER TABLE offers ADD COLUMN IF NOT EXISTS power_term_price_peak   DOUBLE PRECISION NOT NULL DEFAULT 0`,
+			`ALTER TABLE offers ADD COLUMN IF NOT EXISTS power_term_price_valley DOUBLE PRECISION NOT NULL DEFAULT 0`,
+			`ALTER TABLE offers ADD COLUMN IF NOT EXISTS has_permanence          BOOLEAN          NOT NULL DEFAULT FALSE`,
+			`ALTER TABLE offers ADD COLUMN IF NOT EXISTS permanence_months       INTEGER          NOT NULL DEFAULT 0`,
 			`UPDATE offers SET
 				energy_price_peak_kwh   = energy_price_kwh,
 				energy_price_mid_kwh    = energy_price_kwh,
@@ -95,42 +93,44 @@ var migrations = []migration{
 	{
 		version: 3,
 		stmts: []string{
-			// Historical monthly consumption entered by the user.
-			// (month, year) is the natural key; upserts replace the whole row.
 			`CREATE TABLE IF NOT EXISTS consumption_history (
-				id              INTEGER  PRIMARY KEY AUTOINCREMENT,
-				month           INTEGER  NOT NULL CHECK (month BETWEEN 1 AND 12),
-				year            INTEGER  NOT NULL,
-				peak_kwh        REAL     NOT NULL DEFAULT 0,
-				mid_kwh         REAL     NOT NULL DEFAULT 0,
-				valley_kwh      REAL     NOT NULL DEFAULT 0,
-				power_peak_kw   REAL     NOT NULL DEFAULT 0,
-				power_valley_kw REAL     NOT NULL DEFAULT 0,
-				surplus_kwh     REAL     NOT NULL DEFAULT 0,
-				updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				id              BIGSERIAL        PRIMARY KEY,
+				month           INTEGER          NOT NULL CHECK (month BETWEEN 1 AND 12),
+				year            INTEGER          NOT NULL,
+				peak_kwh        DOUBLE PRECISION NOT NULL DEFAULT 0,
+				mid_kwh         DOUBLE PRECISION NOT NULL DEFAULT 0,
+				valley_kwh      DOUBLE PRECISION NOT NULL DEFAULT 0,
+				power_peak_kw   DOUBLE PRECISION NOT NULL DEFAULT 0,
+				power_valley_kw DOUBLE PRECISION NOT NULL DEFAULT 0,
+				surplus_kwh     DOUBLE PRECISION NOT NULL DEFAULT 0,
+				updated_at      TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
 				UNIQUE (month, year)
 			)`,
-			`CREATE TRIGGER IF NOT EXISTS consumption_history_updated_at
-				AFTER UPDATE ON consumption_history
-				BEGIN
-					UPDATE consumption_history SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-				END`,
+			`CREATE OR REPLACE TRIGGER consumption_history_updated_at
+				BEFORE UPDATE ON consumption_history
+				FOR EACH ROW EXECUTE FUNCTION update_updated_at()`,
 		},
 	},
 	{
 		version: 4,
 		stmts: []string{
-			// Mark one offer as the user's current tariff for comparison purposes.
-			// Uniqueness is enforced at the service layer (not DB) for SQLite compatibility.
-			`ALTER TABLE offers ADD COLUMN is_current INTEGER NOT NULL DEFAULT 0`,
+			`ALTER TABLE offers ADD COLUMN IF NOT EXISTS is_current BOOLEAN NOT NULL DEFAULT FALSE`,
 		},
 	},
 }
 
 func migrate(ctx context.Context, db *sql.DB) error {
+	if _, err := db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS schema_migrations (
+			version INTEGER PRIMARY KEY
+		)
+	`); err != nil {
+		return fmt.Errorf("create schema_migrations: %w", err)
+	}
+
 	var version int
-	if err := db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
-		return fmt.Errorf("read user_version: %w", err)
+	if err := db.QueryRowContext(ctx, `SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&version); err != nil {
+		return fmt.Errorf("read schema version: %w", err)
 	}
 
 	for _, m := range migrations {
@@ -144,32 +144,24 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-// applyMigration runs all statements of a single migration inside a transaction
-// and updates user_version atomically. If any statement fails the transaction is
-// rolled back, leaving the database in the previous consistent state.
+// applyMigration runs all statements of a migration inside a transaction and records
+// the version in schema_migrations atomically. Any failure rolls back the entire migration.
 func applyMigration(ctx context.Context, db *sql.DB, m migration) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin migration v%d: %w", m.version, err)
 	}
-	defer tx.Rollback() //nolint:errcheck // intentional best-effort rollback
+	defer tx.Rollback() //nolint:errcheck
 
 	for _, stmt := range m.stmts {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("migration v%d: %w", m.version, err)
 		}
 	}
-	// PRAGMA user_version cannot run inside a transaction in some SQLite drivers;
-	// commit first then update the version.
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit migration v%d: %w", m.version, err)
+
+	if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations (version) VALUES ($1)`, m.version); err != nil {
+		return fmt.Errorf("record migration v%d: %w", m.version, err)
 	}
-	// PRAGMA user_version cannot accept bound parameters; the version integer is
-	// constructed via strconv (not fmt.Sprintf) to make it clear the value is numeric
-	// and never derived from user input.
-	pragma := "PRAGMA user_version = " + strconv.Itoa(m.version)
-	if _, err := db.ExecContext(ctx, pragma); err != nil {
-		return fmt.Errorf("set user_version %d: %w", m.version, err)
-	}
-	return nil
+
+	return tx.Commit()
 }

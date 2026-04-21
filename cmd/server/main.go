@@ -19,10 +19,13 @@ import (
 func main() {
 	ctx := context.Background()
 
-	dbPath := envOrDefault("DB_PATH", "energy-savings.db")
+	connStr := envOrDefault("DATABASE_URL", "")
+	if connStr == "" {
+		log.Fatal("DATABASE_URL is required")
+	}
 	addr := envOrDefault("ADDR", ":8080")
 
-	db, err := database.Open(ctx, dbPath)
+	db, err := database.Open(ctx, connStr)
 	if err != nil {
 		log.Fatalf("open database: %v", err)
 	}
@@ -49,7 +52,7 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("servidor escuchando en %s", addr)
+		log.Printf("server listening on %s", addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("listen: %v", err)
 		}
@@ -64,7 +67,7 @@ func main() {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Fatalf("shutdown: %v", err)
 	}
-	log.Println("servidor detenido")
+	log.Println("server stopped")
 }
 
 func envOrDefault(key, defaultVal string) string {
