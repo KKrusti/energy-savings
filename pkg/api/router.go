@@ -4,10 +4,12 @@ package api
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/go-chi/httprate"
 )
 
 // NewRouter creates and returns the main application router.
@@ -36,8 +38,9 @@ func NewRouter(
 	}))
 
 	r.Route("/api", func(r chi.Router) {
-		// Public auth routes
+		// Public auth routes — strict rate limit per IP: 10 requests/minute
 		r.Route("/auth", func(r chi.Router) {
+			r.Use(httprate.LimitByIP(10, time.Minute))
 			r.Post("/register", authH.Register)
 			r.Post("/login", authH.Login)
 			r.Post("/logout", authH.Logout)

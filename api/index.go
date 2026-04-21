@@ -38,6 +38,11 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		consumptionRepo := repository.NewConsumptionRepository(db)
 		userRepo := repository.NewUserRepository(db)
 
+		if err := userRepo.CleanupExpiredTokens(context.Background()); err != nil {
+			// Non-fatal: expired tokens are already invalid, cleanup is cosmetic.
+			_ = err
+		}
+
 		offerSvc := service.NewOfferService(offerRepo)
 		calcSvc := service.NewCalculatorService()
 

@@ -101,7 +101,13 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "error interno")
 		return
 	}
-	if user == nil || auth.CheckPassword(req.Password, user.PasswordHash) != nil {
+	// Always call bcrypt regardless of whether the user exists, so response time
+	// is constant and an attacker cannot enumerate valid usernames via timing.
+	hashToCheck := "$2a$12$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	if user != nil {
+		hashToCheck = user.PasswordHash
+	}
+	if user == nil || auth.CheckPassword(req.Password, hashToCheck) != nil {
 		writeError(w, http.StatusUnauthorized, "credenciales incorrectas")
 		return
 	}

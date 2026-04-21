@@ -38,6 +38,10 @@ func main() {
 	offerSvc := service.NewOfferService(offerRepo)
 	calcSvc := service.NewCalculatorService()
 
+	if err := userRepo.CleanupExpiredTokens(ctx); err != nil {
+		log.Printf("cleanup expired tokens: %v", err)
+	}
+
 	offerHandler := api.NewOfferHandler(offerSvc)
 	simHandler := api.NewSimulationHandler(offerSvc, calcSvc)
 	consumptionHandler := api.NewConsumptionHandler(consumptionRepo)

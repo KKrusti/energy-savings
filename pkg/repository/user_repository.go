@@ -100,6 +100,16 @@ func (r *UserRepository) RevokeToken(ctx context.Context, jti string, expiresAt 
 	return nil
 }
 
+// CleanupExpiredTokens removes revoked tokens whose expiry has already passed.
+// Safe to call periodically; expired tokens can no longer be used regardless.
+func (r *UserRepository) CleanupExpiredTokens(ctx context.Context) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM revoked_tokens WHERE expires_at < NOW()`)
+	if err != nil {
+		return fmt.Errorf("cleanup expired tokens: %w", err)
+	}
+	return nil
+}
+
 // IsTokenRevoked returns true if the given JTI has been revoked.
 func (r *UserRepository) IsTokenRevoked(ctx context.Context, jti string) (bool, error) {
 	var exists bool
