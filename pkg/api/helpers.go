@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/carlos/energy-savings/internal/domain"
+	"github.com/carlos/energy-savings/pkg/domain"
 )
 
 // maxBodyBytes is the maximum size accepted for request bodies (1 MiB).

@@ -9,10 +9,10 @@ import (
 	"os"
 	"sync"
 
-	internalapi "github.com/carlos/energy-savings/internal/api"
-	"github.com/carlos/energy-savings/internal/database"
-	"github.com/carlos/energy-savings/internal/repository"
-	"github.com/carlos/energy-savings/internal/service"
+	internalapi "github.com/carlos/energy-savings/pkg/api"
+	"github.com/carlos/energy-savings/pkg/database"
+	"github.com/carlos/energy-savings/pkg/repository"
+	"github.com/carlos/energy-savings/pkg/service"
 )
 
 var (

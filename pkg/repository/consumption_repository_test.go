@@ -5,9 +5,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/carlos/energy-savings/internal/database"
-	"github.com/carlos/energy-savings/internal/domain"
-	"github.com/carlos/energy-savings/internal/repository"
+	"github.com/carlos/energy-savings/pkg/database"
+	"github.com/carlos/energy-savings/pkg/domain"
+	"github.com/carlos/energy-savings/pkg/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

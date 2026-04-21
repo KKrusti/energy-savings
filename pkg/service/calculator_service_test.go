@@ -3,8 +3,8 @@ package service_test
 import (
 	"testing"
 
-	"github.com/carlos/energy-savings/internal/domain"
-	"github.com/carlos/energy-savings/internal/service"
+	"github.com/carlos/energy-savings/pkg/domain"
+	"github.com/carlos/energy-savings/pkg/service"
 	"github.com/stretchr/testify/assert"
 )
 

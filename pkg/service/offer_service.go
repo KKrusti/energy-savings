@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/carlos/energy-savings/internal/domain"
-	"github.com/carlos/energy-savings/internal/repository"
+	"github.com/carlos/energy-savings/pkg/domain"
+	"github.com/carlos/energy-savings/pkg/repository"
 )
 
 // ErrOfferNotFound is returned when an offer does not exist.

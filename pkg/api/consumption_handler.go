@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/carlos/energy-savings/internal/domain"
+	"github.com/carlos/energy-savings/pkg/domain"
 )
 
 // consumptionStore is the persistence interface for consumption history.

@@ -4,7 +4,7 @@ package service
 import (
 	"math"
 
-	"github.com/carlos/energy-savings/internal/domain"
+	"github.com/carlos/energy-savings/pkg/domain"
 )
 
 const (

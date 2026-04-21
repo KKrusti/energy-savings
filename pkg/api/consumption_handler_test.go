@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/carlos/energy-savings/internal/api"
-	"github.com/carlos/energy-savings/internal/domain"
+	"github.com/carlos/energy-savings/pkg/api"
+	"github.com/carlos/energy-savings/pkg/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

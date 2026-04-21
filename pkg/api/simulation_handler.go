@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/carlos/energy-savings/internal/domain"
-	"github.com/carlos/energy-savings/internal/service"
+	"github.com/carlos/energy-savings/pkg/domain"
+	"github.com/carlos/energy-savings/pkg/service"
 )
 
 // simulationService is the interface SimulationHandler depends on.

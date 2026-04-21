@@ -23,8 +23,8 @@ Before writing any code, **read** the corresponding SKILL.md file and **print th
 ### When to load database skills
 
 Load **`neon-postgres`** when:
-- Writing or modifying database migrations (`internal/database/db.go`)
-- Changing SQL queries in repositories (`internal/repository/`)
+- Writing or modifying database migrations (`pkg/database/db.go`)
+- Changing SQL queries in repositories (`pkg/repository/`)
 - Configuring Neon connection strings, pooling, or Neon-specific features
 - Debugging connection issues, cold-start latency, or `DATABASE_URL` setup
 
@@ -56,8 +56,8 @@ Individual tasks: `task dev:backend`, `task dev:frontend`, `task test:backend`, 
 ### Running a single test
 ```bash
 # Go — specific package or test
-go test -race ./internal/service/...
-go test -race -run TestCalculatorService_Calculate ./internal/service/
+go test -race ./pkg/service/...
+go test -race -run TestCalculatorService_Calculate ./pkg/service/
 
 # Frontend — specific file
 cd frontend && npx vitest run src/components/__tests__/OfferCard.test.tsx
@@ -89,7 +89,7 @@ Monorepo with an independent Go backend and React frontend communicating via RES
 
 ```
 cmd/server/main.go          ← entry point, dependency wiring
-internal/
+pkg/
   domain/                   ← pure entities: Offer, SimulationRequest, BillBreakdown,
                                 MonthlyConsumption, AnnualSimulationRequest/Response,
                                 ConsumptionHistoryResponse, SaveHistoryRequest
@@ -128,7 +128,7 @@ The constants (`ElectricityTaxRate`, `IVARate`, `MeterRentalDailyRate`) are expo
 `CalculatorService.CalculateAnnual` accepts up to 12 `MonthlyConsumption` entries. Billing days are derived server-side from `Month`+`Year` (the `Days` field is tagged `json:"-"` and never sent by the client). Results are `AnnualOfferResult` per offer, each containing `[]MonthlyBillBreakdown` and a `YearTotal`. The last result is cached client-side in `useLastAnnualSimulation` (React Query) so charts survive navigation. Consumption history is persisted via `PUT /api/consumption/history` (upsert by month+year) and restored on load.
 
 ### Database
-Neon PostgreSQL via `github.com/jackc/pgx/v5/stdlib`. Schema migration runs on startup inside `database.Open` using a `schema_migrations` table to track applied versions. Schema defined in `internal/database/db.go`.
+Neon PostgreSQL via `github.com/jackc/pgx/v5/stdlib`. Schema migration runs on startup inside `database.Open` using a `schema_migrations` table to track applied versions. Schema defined in `pkg/database/db.go`.
 
 Production and Vercel deployments use `DATABASE_URL` from environment variables. Use the `-pooler` Neon hostname for serverless environments to avoid connection exhaustion.
 

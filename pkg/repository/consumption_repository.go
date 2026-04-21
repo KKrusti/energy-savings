@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/carlos/energy-savings/internal/domain"
+	"github.com/carlos/energy-savings/pkg/domain"
 )
 
 // ConsumptionRepository persists monthly consumption history to PostgreSQL.
