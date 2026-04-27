@@ -4,6 +4,7 @@ import { OfferCard } from '@/components/OfferCard'
 import { OfferForm } from '@/components/OfferForm'
 import { PublicOffersModal } from '@/components/PublicOffersModal'
 import { useOffers, useCreateOffer, useUpdateOffer, useDeleteOffer } from '@/hooks/useOffers'
+import { useProfile } from '@/hooks/useProfile'
 import { useLastAnnualSimulation } from '@/hooks/useLastAnnualSimulation'
 import type { AnnualSaving } from '@/components/OfferCard'
 import type { CreateOfferInput, Offer } from '@/types'
@@ -18,6 +19,7 @@ export function OffersPage() {
   const updateMutation = useUpdateOffer()
   const deleteMutation = useDeleteOffer()
   const { data: annualSimulation } = useLastAnnualSimulation()
+  const { data: profile } = useProfile()
 
   // Build a map of offer_id -> AnnualSaving relative to the current tariff's year_total.
   // Also compute the podium rank (1=gold, 2=silver, 3=bronze) for offers cheaper than current.
@@ -165,6 +167,7 @@ export function OffersPage() {
           onSubmit={handleSubmit}
           onCancel={handleClose}
           isLoading={isMutating}
+          hasSolarPanels={profile?.has_solar_panels ?? false}
         />
       )}
 

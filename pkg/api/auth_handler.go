@@ -18,6 +18,7 @@ type authStore interface {
 	GetByUsername(ctx context.Context, username string) (*domain.User, error)
 	GetByID(ctx context.Context, id int64) (*domain.User, error)
 	UpdatePassword(ctx context.Context, userID int64, hash string) error
+	UpdateSolarPanels(ctx context.Context, userID int64, hasSolarPanels bool) error
 	RevokeToken(ctx context.Context, jti string, expiresAt time.Time) error
 	IsTokenRevoked(ctx context.Context, jti string) (bool, error)
 }
@@ -180,6 +181,41 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.store.UpdatePassword(r.Context(), userID, hash); err != nil {
 		writeError(w, http.StatusInternalServerError, "error al actualizar contraseña")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetProfile godoc — GET /api/auth/profile
+func (h *AuthHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
+	userID := UserIDFromContext(r.Context())
+	user, err := h.store.GetByID(r.Context(), userID)
+	if err != nil || user == nil {
+		writeError(w, http.StatusInternalServerError, "error interno")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, domain.UserProfile{
+		Username:       user.Username,
+		Email:          user.Email,
+		HasSolarPanels: user.HasSolarPanels,
+	})
+}
+
+// UpdateProfile godoc — PUT /api/auth/profile
+func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		HasSolarPanels bool `json:"has_solar_panels"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "body inválido")
+		return
+	}
+
+	userID := UserIDFromContext(r.Context())
+	if err := h.store.UpdateSolarPanels(r.Context(), userID, req.HasSolarPanels); err != nil {
+		writeError(w, http.StatusInternalServerError, "error al actualizar perfil")
 		return
 	}
 

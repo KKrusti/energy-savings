@@ -149,3 +149,10 @@ export interface AuthResponse {
   user_id: number
   is_admin: boolean
 }
+
+export interface UserProfile {
+  username: string
+  email: string
+  has_solar_panels: boolean
+}
+

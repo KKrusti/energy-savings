@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Zap, LayoutDashboard, Tag, Sun, Moon, LogOut, User, KeyRound } from 'lucide-react'
+import { Zap, LayoutDashboard, Tag, Sun, Moon, LogOut, User, KeyRound, SunMedium } from 'lucide-react'
 import { useTheme } from '@/context/ThemeContext'
 import { useAuth } from '@/context/AuthContext'
 import { authApi } from '@/api/auth'
 import { getStoredToken } from '@/api/client'
+import { useProfile, useUpdateProfile } from '@/hooks/useProfile'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -14,6 +15,9 @@ export function Layout({ children }: LayoutProps) {
   const { theme, toggleTheme } = useTheme()
   const { user, logout } = useAuth()
   const isDark = theme === 'dark'
+
+  const { data: profile } = useProfile()
+  const updateProfile = useUpdateProfile()
 
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showChangePassword, setShowChangePassword] = useState(false)
@@ -64,7 +68,7 @@ export function Layout({ children }: LayoutProps) {
         >
           <div className="flex items-center gap-2">
             <Zap className="w-5 h-5 text-primary" aria-hidden="true" />
-            <span className="font-semibold text-primary">Energy Savings</span>
+            <span className="font-semibold text-primary">Ahorraluz</span>
           </div>
           <div className="flex items-center gap-1">
             <NavItem to="/" icon={<LayoutDashboard className="w-4 h-4" aria-hidden="true" />} label="Dashboard" isDark={isDark} />
@@ -117,6 +121,22 @@ export function Layout({ children }: LayoutProps) {
                     <KeyRound className="w-4 h-4" />
                     Cambiar contraseña
                   </button>
+                  <label
+                    className={`w-full flex items-center justify-between px-4 py-3 text-sm cursor-pointer select-none
+                      ${isDark ? 'text-slate-300 hover:bg-white/5' : 'text-slate-700 hover:bg-slate-50'}`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <SunMedium className="w-4 h-4 text-amber-400" aria-hidden="true" />
+                      Tengo placas solares
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={profile?.has_solar_panels ?? false}
+                      onChange={(e) => updateProfile.mutate({ has_solar_panels: e.target.checked })}
+                      className="w-4 h-4 rounded accent-primary cursor-pointer"
+                      aria-label="Tengo placas solares"
+                    />
+                  </label>
                   <button
                     onClick={() => { setShowUserMenu(false); logout() }}
                     className={`w-full flex items-center gap-2 px-4 py-3 text-sm transition-colors cursor-pointer

@@ -1,6 +1,6 @@
 import { forwardRef, useEffect } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
-import { X } from 'lucide-react'
+import { X, SunMedium } from 'lucide-react'
 import type { CreateOfferInput, Offer } from '@/types'
 
 interface OfferFormProps {
@@ -8,6 +8,7 @@ interface OfferFormProps {
   onSubmit: (data: CreateOfferInput) => void
   onCancel: () => void
   isLoading?: boolean
+  hasSolarPanels?: boolean
 }
 
 type FormValues = CreateOfferInput
@@ -31,7 +32,7 @@ const defaultValues: FormValues = {
   is_public: false,
 }
 
-export function OfferForm({ offer, onSubmit, onCancel, isLoading }: OfferFormProps) {
+export function OfferForm({ offer, onSubmit, onCancel, isLoading, hasSolarPanels = false }: OfferFormProps) {
   const { register, handleSubmit, reset, setValue, control, formState: { errors } } =
     useForm<FormValues>({ defaultValues })
 
@@ -231,17 +232,25 @@ export function OfferForm({ offer, onSubmit, onCancel, isLoading }: OfferFormPro
           {/* ── Otros ── */}
           <Section title="Otros">
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Compensación excedentes (€/kWh)">
-                <input
-                  {...register('surplus_compensation', {
-                    min: { value: 0, message: '≥ 0' },
-                    valueAsNumber: true,
-                  })}
-                  type="number" step="0.0001" placeholder="0.0600"
-                  className={inputClass(false)}
-                />
-                <p className="text-xs text-slate-500 mt-1">Dejar en 0 si no hay compensación solar</p>
-              </Field>
+              {hasSolarPanels ? (
+                <Field label="Compensación excedentes (€/kWh)">
+                  <input
+                    {...register('surplus_compensation', {
+                      min: { value: 0, message: '≥ 0' },
+                      valueAsNumber: true,
+                    })}
+                    type="number" step="0.0001" placeholder="0.0600"
+                    className={inputClass(false)}
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Dejar en 0 si esta tarifa no ofrece compensación</p>
+                </Field>
+              ) : (
+                <div className="flex items-center gap-2 rounded-xl border border-dashed
+                  border-slate-300 dark:border-white/10 px-3 py-2.5 text-xs text-slate-400 dark:text-slate-500">
+                  <SunMedium className="w-4 h-4 shrink-0 text-amber-400" aria-hidden="true" />
+                  Activa «Tengo placas solares» en tu perfil para configurar la compensación de excedentes
+                </div>
+              )}
 
               {/* Permanencia */}
               <div>

@@ -48,9 +48,9 @@ func (r *UserRepository) CreateUser(ctx context.Context, username, email, passwo
 func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*domain.User, error) {
 	var u domain.User
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, username, email, password_hash, is_admin, created_at FROM users WHERE username = $1`,
+		`SELECT id, username, email, password_hash, is_admin, has_solar_panels, created_at FROM users WHERE username = $1`,
 		username,
-	).Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsAdmin, &u.CreatedAt)
+	).Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsAdmin, &u.HasSolarPanels, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -64,9 +64,9 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*d
 func (r *UserRepository) GetByID(ctx context.Context, id int64) (*domain.User, error) {
 	var u domain.User
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, username, email, password_hash, is_admin, created_at FROM users WHERE id = $1`,
+		`SELECT id, username, email, password_hash, is_admin, has_solar_panels, created_at FROM users WHERE id = $1`,
 		id,
-	).Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsAdmin, &u.CreatedAt)
+	).Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsAdmin, &u.HasSolarPanels, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -121,4 +121,16 @@ func (r *UserRepository) IsTokenRevoked(ctx context.Context, jti string) (bool, 
 		return false, fmt.Errorf("check revoked token: %w", err)
 	}
 	return exists, nil
+}
+
+// UpdateSolarPanels sets the has_solar_panels flag for the given user.
+func (r *UserRepository) UpdateSolarPanels(ctx context.Context, userID int64, hasSolarPanels bool) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE users SET has_solar_panels = $1 WHERE id = $2`,
+		hasSolarPanels, userID,
+	)
+	if err != nil {
+		return fmt.Errorf("update solar panels: %w", err)
+	}
+	return nil
 }

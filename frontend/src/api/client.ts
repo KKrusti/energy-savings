@@ -5,6 +5,7 @@ import type {
   AnnualSimulationRequest,
   AnnualSimulationResponse,
   ConsumptionHistoryResponse,
+  UserProfile,
 } from '@/types'
 
 const BASE = '/api'
@@ -70,4 +71,11 @@ export const consumptionApi = {
   getHistory: () => request<ConsumptionHistoryResponse>('/consumption/history'),
   saveHistory: (data: ConsumptionHistoryResponse) =>
     request<void>('/consumption/history', { method: 'PUT', body: JSON.stringify(data) }),
+}
+
+// User profile
+export const profileApi = {
+  get: () => request<UserProfile>('/auth/profile'),
+  update: (data: Partial<Pick<UserProfile, 'has_solar_panels'>>) =>
+    request<void>('/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
 }

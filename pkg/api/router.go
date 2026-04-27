@@ -53,6 +53,8 @@ func NewRouter(
 			r.Use(RequireAuth(userRepo))
 
 			r.Post("/auth/password", authH.ChangePassword)
+			r.Get("/auth/profile", authH.GetProfile)
+			r.Put("/auth/profile", authH.UpdateProfile)
 
 			r.Route("/offers", func(r chi.Router) {
 				r.Get("/", offerH.List)

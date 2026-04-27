@@ -151,6 +151,12 @@ var migrations = []migration{
 			`ALTER TABLE offers ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT FALSE`,
 		},
 	},
+	{
+		version: 8,
+		stmts: []string{
+			`ALTER TABLE users ADD COLUMN IF NOT EXISTS has_solar_panels BOOLEAN NOT NULL DEFAULT FALSE`,
+		},
+	},
 }
 
 func migrate(ctx context.Context, db *sql.DB) error {
