@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { Tag, TrendingDown, FileUp } from 'lucide-react'
-import { MonthlyInputTable, buildDefaultMonths, monthKey, type MonthSourceMap } from '@/components/MonthlyInputTable'
+import { MonthlyInputTable, buildDefaultMonths, monthKey, type MonthSourceMap, type MonthSource } from '@/components/MonthlyInputTable'
 import { MonthlyDetailDrawer } from '@/components/MonthlyDetailDrawer'
 import { AnnualCostChart } from '@/components/AnnualCostChart'
 import { MonthlyBreakdownChart } from '@/components/MonthlyBreakdownChart'
@@ -9,10 +9,30 @@ import { useOffers } from '@/hooks/useOffers'
 import { useAnnualSimulation } from '@/hooks/useAnnualSimulation'
 import { useLastAnnualSimulation } from '@/hooks/useLastAnnualSimulation'
 import { useConsumptionHistory, useSaveConsumptionHistory } from '@/hooks/useConsumptionHistory'
+import { useAuth } from '@/context/AuthContext'
 import type { AnnualSimulationRequest, AnnualOfferResult } from '@/types'
 import type { InvoiceData } from '@/utils/parsePdfInvoice'
 
+function sourcesKey(userId: number) {
+  return `month-sources-${userId}`
+}
+
+function loadSources(userId: number): MonthSourceMap {
+  try {
+    const raw = localStorage.getItem(sourcesKey(userId))
+    if (!raw) return new Map()
+    return new Map(JSON.parse(raw) as [string, MonthSource][])
+  } catch {
+    return new Map()
+  }
+}
+
+function saveSources(userId: number, sources: MonthSourceMap) {
+  localStorage.setItem(sourcesKey(userId), JSON.stringify([...sources]))
+}
+
 export function DashboardPage() {
+  const { user } = useAuth()
   const { data: offers = [] } = useOffers()
   const annualSimulation = useAnnualSimulation()
   const { data: lastSimulation } = useLastAnnualSimulation()
@@ -46,14 +66,21 @@ export function DashboardPage() {
   const [detailMonth, setDetailMonth] = useState<{ month: number; year: number } | null>(null)
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
   const [importWarning, setImportWarning] = useState<string | null>(null)
-  const [monthSources, setMonthSources] = useState<MonthSourceMap>(new Map())
+  const [monthSources, setMonthSources] = useState<MonthSourceMap>(() =>
+    user ? loadSources(user.user_id) : new Map(),
+  )
+
+  // Persist sources to localStorage whenever they change.
+  useEffect(() => {
+    if (user) saveSources(user.user_id, monthSources)
+  }, [user, monthSources])
 
   // Populate the table with saved history once it loads.
   // Only replace if the server returned at least one entry.
+  // Sources are intentionally NOT cleared here — they live in localStorage.
   useEffect(() => {
     if (historyLoaded && savedHistory && savedHistory.months.length > 0) {
       setAnnualReq({ months: savedHistory.months })
-      setMonthSources(new Map())
     }
   }, [historyLoaded, savedHistory])
 
