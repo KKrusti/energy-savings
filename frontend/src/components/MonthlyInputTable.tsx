@@ -1,5 +1,13 @@
 import { useCallback } from 'react'
+import { FileText, Pencil } from 'lucide-react'
 import type { MonthlyConsumption, AnnualSimulationRequest } from '@/types'
+
+export type MonthSource = 'pdf' | 'manual'
+export type MonthSourceMap = Map<string, MonthSource>
+
+export function monthKey(month: number, year: number): string {
+  return `${year}-${month}`
+}
 
 const MONTH_NAMES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -24,6 +32,7 @@ export function buildDefaultMonths(now = new Date()): MonthlyConsumption[] {
       power_peak_kw: 3.45,
       power_valley_kw: 3.45,
       surplus_kwh: 0,
+      iva_rate: 0,
     }
   })
 }
@@ -33,9 +42,13 @@ interface Props {
   onChange: (req: AnnualSimulationRequest) => void
   /** Called when the user clicks on a month label. Only wired when simulation data exists. */
   onMonthClick?: (month: number, year: number) => void
+  /** Source map keyed by monthKey(). Used to show PDF/manual badges. */
+  sources?: MonthSourceMap
+  /** Called when the user edits a cell, with the row index. */
+  onCellEdit?: (index: number) => void
 }
 
-export function MonthlyInputTable({ value, onChange, onMonthClick }: Props) {
+export function MonthlyInputTable({ value, onChange, onMonthClick, sources, onCellEdit }: Props) {
   const update = useCallback(
     (index: number, field: keyof MonthlyConsumption, raw: string) => {
       const parsed = parseFloat(raw)
@@ -44,8 +57,9 @@ export function MonthlyInputTable({ value, onChange, onMonthClick }: Props) {
         i === index ? { ...m, [field]: num } : m,
       )
       onChange({ months: updated })
+      onCellEdit?.(index)
     },
-    [value, onChange],
+    [value, onChange, onCellEdit],
   )
 
   return (
@@ -72,34 +86,63 @@ export function MonthlyInputTable({ value, onChange, onMonthClick }: Props) {
             <th className="px-3 py-3 text-right font-medium text-emerald-400">
               Excedentes<span className="block text-xs font-normal text-slate-500">kWh</span>
             </th>
+            <th className="px-3 py-3 text-right font-medium text-indigo-400">
+              IVA<span className="block text-xs font-normal text-slate-500">%</span>
+            </th>
           </tr>
         </thead>
         <tbody>
-          {value.months.map((m, i) => (
+          {value.months.map((m, i) => {
+            const source = sources?.get(monthKey(m.month, m.year))
+            return (
             <tr
               key={`${m.year}-${m.month}`}
               className="border-b border-slate-100 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
             >
               <td className="px-3 py-2 font-medium text-slate-600 dark:text-slate-300">
-                {onMonthClick ? (
-                  <button
-                    type="button"
-                    onClick={() => onMonthClick(m.month, m.year)}
-                    className="text-left hover:text-primary-light transition-colors group"
-                    title="Ver desglose por oferta"
-                  >
-                    {MONTH_NAMES[m.month - 1]}
-                    <span className="ml-1 text-xs font-normal text-slate-500 group-hover:text-slate-400">
-                      {m.year}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {onMonthClick ? (
+                    <button
+                      type="button"
+                      onClick={() => onMonthClick(m.month, m.year)}
+                      className="text-left hover:text-primary-light transition-colors group"
+                      title="Ver desglose por oferta"
+                    >
+                      {MONTH_NAMES[m.month - 1]}
+                      <span className="ml-1 text-xs font-normal text-slate-500 group-hover:text-slate-400">
+                        {m.year}
+                      </span>
+                      <span className="ml-1.5 text-xs text-slate-600 group-hover:text-primary-light" aria-hidden="true">↗</span>
+                    </button>
+                  ) : (
+                    <span>
+                      {MONTH_NAMES[m.month - 1]}
+                      <span className="ml-1 text-xs font-normal text-slate-500">{m.year}</span>
                     </span>
-                    <span className="ml-1.5 text-xs text-slate-600 group-hover:text-primary-light" aria-hidden="true">↗</span>
-                  </button>
-                ) : (
-                  <>
-                    {MONTH_NAMES[m.month - 1]}
-                    <span className="ml-1 text-xs font-normal text-slate-500">{m.year}</span>
-                  </>
-                )}
+                  )}
+                  {source === 'pdf' && (
+                    <span
+                      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded
+                        text-[10px] font-semibold tracking-wide
+                        bg-amber-400/15 text-amber-500 dark:text-amber-400"
+                      title="Datos importados desde factura PDF"
+                    >
+                      <FileText className="w-2.5 h-2.5" aria-hidden="true" />
+                      PDF
+                    </span>
+                  )}
+                  {source === 'manual' && (
+                    <span
+                      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded
+                        text-[10px] font-semibold tracking-wide
+                        bg-slate-400/15 text-slate-400 dark:text-slate-500"
+                      title="Datos introducidos manualmente"
+                    >
+                      <Pencil className="w-2.5 h-2.5" aria-hidden="true" />
+                      Manual
+                    </span>
+                  )}
+                </div>
               </td>
               <NumCell
                 value={m.peak_kwh}
@@ -139,8 +182,31 @@ export function MonthlyInputTable({ value, onChange, onMonthClick }: Props) {
                 color="text-emerald-400"
                 label={`Excedentes ${MONTH_NAMES[m.month - 1]} ${m.year}`}
               />
+              <td className="px-2 py-1.5 text-right">
+                <input
+                  type="number"
+                  aria-label={`IVA ${MONTH_NAMES[m.month - 1]} ${m.year}`}
+                  value={m.iva_rate > 0 ? m.iva_rate * 100 : ''}
+                  placeholder="21"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  onChange={(e) => {
+                    const parsed = parseFloat(e.target.value)
+                    const fraction = isNaN(parsed) ? 0 : parsed / 100
+                    const updated = value.months.map((month, j) =>
+                      j === i ? { ...month, iva_rate: fraction } : month,
+                    )
+                    onChange({ months: updated })
+                    onCellEdit?.(i)
+                  }}
+                  className="w-14 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 px-2 py-1 text-right text-sm text-indigo-400
+                    focus:outline-none focus:ring-1 focus:ring-primary/60
+                    [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                />
+              </td>
             </tr>
-          ))}
+          )})}
         </tbody>
       </table>
     </div>

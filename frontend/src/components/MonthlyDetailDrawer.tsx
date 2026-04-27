@@ -259,7 +259,7 @@ function OfferBreakdownCard({ offerName, provider, bd, rank, isCurrent, currentT
 
         {/* ── IVA + Total ── */}
         <div className="px-5 py-3 space-y-2">
-          <Line label="IVA (21%)" value={bd.iva} />
+          <Line label={`IVA (${Math.round(bd.iva_rate_used * 100 * 10) / 10}%)`} value={bd.iva} />
           <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-white/10">
             <span className="text-sm font-semibold text-slate-900 dark:text-[#F8FAFC]">Total</span>
             <span className="text-sm font-bold text-slate-900 dark:text-[#F8FAFC]">{fmt(bd.total)} €</span>

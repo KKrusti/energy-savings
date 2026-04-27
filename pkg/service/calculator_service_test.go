@@ -222,7 +222,7 @@ func TestCalculatorService_CalculateMonthly(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := svc.CalculateMonthly(tc.offer, tc.month)
+			result := svc.CalculateMonthly(tc.offer, tc.month, service.IVARate)
 
 			assert.InDelta(t, tc.wantEnergy, result.EnergyTerm, 0.05)
 			assert.InDelta(t, tc.wantSurplus, result.SurplusCredit, 0.05)

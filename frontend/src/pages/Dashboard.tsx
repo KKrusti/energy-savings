@@ -1,14 +1,16 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
-import { Tag, TrendingDown } from 'lucide-react'
-import { MonthlyInputTable, buildDefaultMonths } from '@/components/MonthlyInputTable'
+import { Tag, TrendingDown, FileUp } from 'lucide-react'
+import { MonthlyInputTable, buildDefaultMonths, monthKey, type MonthSourceMap } from '@/components/MonthlyInputTable'
 import { MonthlyDetailDrawer } from '@/components/MonthlyDetailDrawer'
 import { AnnualCostChart } from '@/components/AnnualCostChart'
 import { MonthlyBreakdownChart } from '@/components/MonthlyBreakdownChart'
+import { InvoiceUploadModal } from '@/components/InvoiceUploadModal'
 import { useOffers } from '@/hooks/useOffers'
 import { useAnnualSimulation } from '@/hooks/useAnnualSimulation'
 import { useLastAnnualSimulation } from '@/hooks/useLastAnnualSimulation'
 import { useConsumptionHistory, useSaveConsumptionHistory } from '@/hooks/useConsumptionHistory'
 import type { AnnualSimulationRequest, AnnualOfferResult } from '@/types'
+import type { InvoiceData } from '@/utils/parsePdfInvoice'
 
 export function DashboardPage() {
   const { data: offers = [] } = useOffers()
@@ -42,18 +44,21 @@ export function DashboardPage() {
   }))
   const [selectedOffer, setSelectedOffer] = useState<AnnualOfferResult | null>(null)
   const [detailMonth, setDetailMonth] = useState<{ month: number; year: number } | null>(null)
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false)
+  const [importWarning, setImportWarning] = useState<string | null>(null)
+  const [monthSources, setMonthSources] = useState<MonthSourceMap>(new Map())
 
   // Populate the table with saved history once it loads.
   // Only replace if the server returned at least one entry.
   useEffect(() => {
     if (historyLoaded && savedHistory && savedHistory.months.length > 0) {
       setAnnualReq({ months: savedHistory.months })
+      setMonthSources(new Map())
     }
   }, [historyLoaded, savedHistory])
 
   const handleAnnualSimulate = () => {
     setSelectedOffer(null)
-    // Persist current table data before simulating
     saveHistory.mutate({ months: annualReq.months })
     annualSimulation.mutate(annualReq)
   }
@@ -65,6 +70,46 @@ export function DashboardPage() {
   const handleMonthClick = useCallback((month: number, year: number) => {
     setDetailMonth({ month, year })
   }, [])
+
+  const handleCellEdit = useCallback(
+    (index: number) => {
+      const m = annualReq.months[index]
+      setMonthSources((prev) => new Map(prev).set(monthKey(m.month, m.year), 'manual'))
+    },
+    [annualReq.months],
+  )
+
+  const handleInvoiceImport = useCallback(
+    (data: InvoiceData) => {
+      setImportWarning(null)
+      const idx = annualReq.months.findIndex(
+        (m) => m.month === data.month && m.year === data.year,
+      )
+      if (idx === -1) {
+        setImportWarning(
+          `La factura corresponde a ${data.month}/${data.year}, que está fuera del rango mostrado en la tabla.`,
+        )
+        return
+      }
+      const updated = annualReq.months.map((m, i) =>
+        i === idx
+          ? {
+              ...m,
+              peak_kwh: data.peak_kwh,
+              mid_kwh: data.mid_kwh,
+              valley_kwh: data.valley_kwh,
+              power_peak_kw: data.power_peak_kw,
+              power_valley_kw: data.power_valley_kw,
+              surplus_kwh: data.surplus_kwh,
+              iva_rate: data.iva_rate ?? 0,
+            }
+          : m,
+      )
+      setAnnualReq({ months: updated })
+      setMonthSources((prev) => new Map(prev).set(monthKey(data.month, data.year), 'pdf'))
+    },
+    [annualReq.months],
+  )
 
   // Use the cached result as fallback so charts survive navigation away and back
   const simulationData = annualSimulation.data ?? lastSimulation ?? undefined
@@ -115,23 +160,47 @@ export function DashboardPage() {
       )}
 
       {/* Comparación anual */}
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-[#F8FAFC]">Comparación anual</h2>
-        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-          Introduce el consumo mensual por franjas y compara el coste con todas las ofertas a lo largo del año.
-          Los datos se guardan automáticamente al calcular.
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-[#F8FAFC]">Comparación anual</h2>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+            Introduce el consumo mensual por franjas y compara el coste con todas las ofertas a lo largo del año.
+            Los datos se guardan automáticamente al calcular.
+          </p>
+        </div>
+        <button
+          onClick={() => { setImportWarning(null); setShowInvoiceModal(true) }}
+          className="flex items-center gap-2 shrink-0 px-3.5 py-2 rounded-xl
+            border border-slate-200 dark:border-white/10
+            bg-white/80 dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-white/10
+            text-sm text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+          title="Importar datos desde una factura PDF de Endesa"
+        >
+          <FileUp className="w-4 h-4 text-amber-400" aria-hidden="true" />
+          <span className="hidden sm:inline">Importar factura</span>
+        </button>
       </div>
+
+      {importWarning && (
+        <div
+          role="alert"
+          className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-amber-700 dark:text-amber-400 text-sm mb-4"
+        >
+          {importWarning}
+        </div>
+      )}
 
       <div className="mb-4">
         <MonthlyInputTable
           value={annualReq}
           onChange={setAnnualReq}
           onMonthClick={simulationData ? handleMonthClick : undefined}
+          sources={monthSources}
+          onCellEdit={handleCellEdit}
         />
       </div>
 
-      <div className="mb-8 flex items-center gap-3">
+      <div className="mb-8 flex flex-wrap items-center gap-3">
         <button
           onClick={handleAnnualSimulate}
           disabled={annualSimulation.isPending || offers.length === 0}
@@ -140,6 +209,7 @@ export function DashboardPage() {
         >
           {annualSimulation.isPending ? 'Calculando…' : 'Calcular año completo'}
         </button>
+
         {saveHistory.isSuccess && (
           <span className="text-xs text-emerald-500 dark:text-emerald-400">Datos guardados</span>
         )}
@@ -178,6 +248,13 @@ export function DashboardPage() {
         offers={offers}
         onClose={() => setDetailMonth(null)}
       />
+
+      {showInvoiceModal && (
+        <InvoiceUploadModal
+          onImport={handleInvoiceImport}
+          onClose={() => setShowInvoiceModal(false)}
+        />
+      )}
     </section>
   )
 }

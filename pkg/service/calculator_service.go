@@ -88,7 +88,10 @@ func (s *CalculatorService) CalculateAll(offers []domain.Offer, req domain.Simul
 //
 // Power: when PowerTermSamePrice both contracted-power values use the same price;
 // otherwise PowerPeakKW uses PowerTermPricePeak and PowerValleyKW uses PowerTermPriceValley.
-func (s *CalculatorService) CalculateMonthly(offer domain.Offer, m domain.MonthlyConsumption) domain.BillBreakdown {
+// CalculateMonthly returns an itemized BillBreakdown for a single offer using real
+// tiered consumption data (peak/mid/valley kWh) for one calendar month.
+// ivaRate is the VAT fraction to apply (e.g. 0.10 for 10%). Pass IVARate for the default.
+func (s *CalculatorService) CalculateMonthly(offer domain.Offer, m domain.MonthlyConsumption, ivaRate float64) domain.BillBreakdown {
 	var energyTerm float64
 	if offer.EnergyPriceFlat {
 		totalKWh := m.PeakKWh + m.MidKWh + m.ValleyKWh
@@ -113,7 +116,7 @@ func (s *CalculatorService) CalculateMonthly(offer domain.Offer, m domain.Monthl
 	meterRental := MeterRentalDailyRate * float64(m.Days)
 	electricityTax := (energyTerm + powerTerm) * ElectricityTaxRate
 	subtotal := energyTerm + powerTerm + electricityTax + meterRental - surplusCredit
-	iva := subtotal * IVARate
+	iva := subtotal * ivaRate
 	total := subtotal + iva
 
 	return domain.BillBreakdown{
@@ -131,13 +134,18 @@ func (s *CalculatorService) CalculateMonthly(offer domain.Offer, m domain.Monthl
 }
 
 // CalculateAnnual returns an AnnualSimulationResponse for all offers over the provided months.
+// Each month's IVARate is used; when zero the default IVARate constant is applied.
 func (s *CalculatorService) CalculateAnnual(offers []domain.Offer, req domain.AnnualSimulationRequest) domain.AnnualSimulationResponse {
 	results := make([]domain.AnnualOfferResult, 0, len(offers))
 	for _, o := range offers {
 		months := make([]domain.MonthlyBillBreakdown, 0, len(req.Months))
 		var yearTotal float64
 		for _, m := range req.Months {
-			bd := s.CalculateMonthly(o, m)
+			ivaRate := m.IVARate
+			if ivaRate <= 0 {
+				ivaRate = IVARate
+			}
+			bd := s.CalculateMonthly(o, m, ivaRate)
 
 			// Per-period energy terms for chart visualisation
 			var peakTerm, midTerm, valleyTerm float64
@@ -177,6 +185,7 @@ func (s *CalculatorService) CalculateAnnual(offers []domain.Offer, req domain.An
 				PricePowerPeak:   o.PowerTermPricePeak,
 				PricePowerValley: o.PowerTermPriceValley,
 				PriceSurplus:     o.SurplusCompensation,
+				IVARateUsed:      ivaRate,
 			})
 			yearTotal += bd.Total
 		}

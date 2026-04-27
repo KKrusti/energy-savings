@@ -139,6 +139,12 @@ var migrations = []migration{
 				ON consumption_history (user_id, month, year) NULLS NOT DISTINCT`,
 		},
 	},
+	{
+		version: 6,
+		stmts: []string{
+			`ALTER TABLE consumption_history ADD COLUMN IF NOT EXISTS iva_rate DOUBLE PRECISION NOT NULL DEFAULT 0`,
+		},
+	},
 }
 
 func migrate(ctx context.Context, db *sql.DB) error {

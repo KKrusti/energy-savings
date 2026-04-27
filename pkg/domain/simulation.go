@@ -20,7 +20,7 @@ type BillBreakdown struct {
 	SurplusCredit  float64 `json:"surplus_credit"`  // excedentes × compensación (negativo)
 	ElectricityTax float64 `json:"electricity_tax"` // impuesto electricidad 5.11269%
 	MeterRental    float64 `json:"meter_rental"`    // alquiler contador
-	IVA            float64 `json:"iva"`             // IVA 21%
+	IVA            float64 `json:"iva"`             // IVA (rate configurable per request)
 	Total          float64 `json:"total"`           // total final
 }
 
@@ -42,6 +42,7 @@ type MonthlyConsumption struct {
 	PowerPeakKW   float64 `json:"power_peak_kw"`   // contracted power — peak period (kW)
 	PowerValleyKW float64 `json:"power_valley_kw"` // contracted power — valley period (kW)
 	SurplusKWh    float64 `json:"surplus_kwh"`     // kWh of solar surplus injected to grid
+	IVARate       float64 `json:"iva_rate"`         // VAT fraction for this month (e.g. 0.10); 0 means use the system default (21%)
 	Days          int     `json:"-"`               // billing days — derived from Month+Year, never serialised
 }
 
@@ -74,6 +75,7 @@ type MonthlyBillBreakdown struct {
 	PricePowerPeak   float64 `json:"price_power_peak"`
 	PricePowerValley float64 `json:"price_power_valley"`
 	PriceSurplus     float64 `json:"price_surplus"`
+	IVARateUsed      float64 `json:"iva_rate_used"` // actual VAT fraction applied to this month
 	Days             int     `json:"days"`
 }
 

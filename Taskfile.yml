@@ -1,5 +1,7 @@
 version: '3'
 
+dotenv: ['.env', '.env.local']
+
 tasks:
   # ─── Desarrollo ────────────────────────────────────────────────────────────
   dev:
@@ -15,6 +17,7 @@ tasks:
     env:
       ADDR: ":8080"
       DATABASE_URL: "{{.DATABASE_URL}}"
+      JWT_SECRET: "{{.JWT_SECRET}}"
       CORS_ALLOWED_ORIGINS: "http://localhost:5173"
 
   dev:frontend:

@@ -83,6 +83,8 @@ export interface MonthlyConsumption {
   power_peak_kw: number    // contracted power — peak period (kW)
   power_valley_kw: number  // contracted power — valley period (kW)
   surplus_kwh: number      // solar surplus injected to grid (kWh)
+  /** VAT rate as a fraction for this month (e.g. 0.10). 0 means use the system default (21%). */
+  iva_rate: number
 }
 
 export interface AnnualSimulationRequest {
@@ -110,6 +112,7 @@ export interface MonthlyBillBreakdown extends BillBreakdown {
   price_power_peak: number
   price_power_valley: number
   price_surplus: number
+  iva_rate_used: number
 }
 
 export interface AnnualOfferResult {
