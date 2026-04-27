@@ -46,9 +46,11 @@ interface Props {
   sources?: MonthSourceMap
   /** Called when the user edits a cell, with the row index. */
   onCellEdit?: (index: number) => void
+  /** When false the Excedentes column is hidden (user has no solar panels). Defaults to false. */
+  showSurplus?: boolean
 }
 
-export function MonthlyInputTable({ value, onChange, onMonthClick, sources, onCellEdit }: Props) {
+export function MonthlyInputTable({ value, onChange, onMonthClick, sources, onCellEdit, showSurplus = false }: Props) {
   const update = useCallback(
     (index: number, field: keyof MonthlyConsumption, raw: string) => {
       const parsed = parseFloat(raw)
@@ -83,9 +85,11 @@ export function MonthlyInputTable({ value, onChange, onMonthClick, sources, onCe
             <th className="px-3 py-3 text-right font-medium text-slate-400">
               Pot. P2<span className="block text-xs font-normal text-slate-500">kW</span>
             </th>
-            <th className="px-3 py-3 text-right font-medium text-emerald-400">
-              Excedentes<span className="block text-xs font-normal text-slate-500">kWh</span>
-            </th>
+            {showSurplus && (
+              <th className="px-3 py-3 text-right font-medium text-emerald-400">
+                Excedentes<span className="block text-xs font-normal text-slate-500">kWh</span>
+              </th>
+            )}
             <th className="px-3 py-3 text-right font-medium text-indigo-400">
               IVA<span className="block text-xs font-normal text-slate-500">%</span>
             </th>
@@ -176,12 +180,14 @@ export function MonthlyInputTable({ value, onChange, onMonthClick, sources, onCe
                 label={`Pot. P2 ${MONTH_NAMES[m.month - 1]} ${m.year}`}
                 step="0.01"
               />
-              <NumCell
-                value={m.surplus_kwh}
-                onChange={(v) => update(i, 'surplus_kwh', v)}
-                color="text-emerald-400"
-                label={`Excedentes ${MONTH_NAMES[m.month - 1]} ${m.year}`}
-              />
+              {showSurplus && (
+                <NumCell
+                  value={m.surplus_kwh}
+                  onChange={(v) => update(i, 'surplus_kwh', v)}
+                  color="text-emerald-400"
+                  label={`Excedentes ${MONTH_NAMES[m.month - 1]} ${m.year}`}
+                />
+              )}
               <td className="px-2 py-1.5 text-right">
                 <input
                   type="number"

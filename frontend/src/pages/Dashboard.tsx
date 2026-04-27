@@ -9,6 +9,7 @@ import { useOffers } from '@/hooks/useOffers'
 import { useAnnualSimulation } from '@/hooks/useAnnualSimulation'
 import { useLastAnnualSimulation } from '@/hooks/useLastAnnualSimulation'
 import { useConsumptionHistory, useSaveConsumptionHistory } from '@/hooks/useConsumptionHistory'
+import { useProfile } from '@/hooks/useProfile'
 import { useAuth } from '@/context/AuthContext'
 import type { AnnualSimulationRequest, AnnualOfferResult } from '@/types'
 import type { InvoiceData } from '@/utils/parsePdfInvoice'
@@ -33,6 +34,7 @@ function saveSources(userId: number, sources: MonthSourceMap) {
 
 export function DashboardPage() {
   const { user } = useAuth()
+  const { data: profile } = useProfile()
   const { data: offers = [] } = useOffers()
   const annualSimulation = useAnnualSimulation()
   const { data: lastSimulation } = useLastAnnualSimulation()
@@ -224,6 +226,7 @@ export function DashboardPage() {
           onMonthClick={simulationData ? handleMonthClick : undefined}
           sources={monthSources}
           onCellEdit={handleCellEdit}
+          showSurplus={profile?.has_solar_panels ?? false}
         />
       </div>
 

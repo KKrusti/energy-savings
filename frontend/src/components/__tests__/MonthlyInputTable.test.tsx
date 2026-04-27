@@ -13,11 +13,18 @@ function makeRequest(): AnnualSimulationRequest {
 }
 
 // Stateful wrapper so input changes propagate back through value prop
-function ControlledWrapper({ onChange }: { onChange: (r: AnnualSimulationRequest) => void }) {
+function ControlledWrapper({
+  onChange,
+  showSurplus = false,
+}: {
+  onChange: (r: AnnualSimulationRequest) => void
+  showSurplus?: boolean
+}) {
   const [req, setReq] = useState<AnnualSimulationRequest>(makeRequest())
   return (
     <MonthlyInputTable
       value={req}
+      showSurplus={showSurplus}
       onChange={(r) => {
         setReq(r)
         onChange(r)
@@ -37,7 +44,7 @@ describe('MonthlyInputTable', () => {
   })
 
   it('renders column headers', () => {
-    render(<MonthlyInputTable value={makeRequest()} onChange={vi.fn()} />)
+    render(<MonthlyInputTable value={makeRequest()} onChange={vi.fn()} showSurplus={true} />)
     expect(screen.getByText('Punta')).toBeInTheDocument()
     expect(screen.getByText('Llano')).toBeInTheDocument()
     expect(screen.getByText('Valle')).toBeInTheDocument()
@@ -64,7 +71,7 @@ describe('MonthlyInputTable', () => {
   it('calls onChange with updated surplus_kwh when excedentes input changes', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<ControlledWrapper onChange={onChange} />)
+    render(<ControlledWrapper onChange={onChange} showSurplus={true} />)
 
     // First row = April 2025
     const surplusInput = screen.getByLabelText('Excedentes Abril 2025')
