@@ -5,6 +5,7 @@
 *.db-shm
 *.db-wal
 /frontend/node_modules/
+/frontend/public/pdf.worker.min.mjs
 /.beads/
 /.task/
 /bin/
