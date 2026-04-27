@@ -20,7 +20,7 @@ type stubConsumptionStore struct {
 	err  error
 }
 
-func (s *stubConsumptionStore) Upsert(_ context.Context, months []domain.MonthlyConsumption) error {
+func (s *stubConsumptionStore) Upsert(_ context.Context, _ int64, months []domain.MonthlyConsumption) error {
 	if s.err != nil {
 		return s.err
 	}
@@ -28,7 +28,7 @@ func (s *stubConsumptionStore) Upsert(_ context.Context, months []domain.Monthly
 	return nil
 }
 
-func (s *stubConsumptionStore) List(_ context.Context) ([]domain.MonthlyConsumption, error) {
+func (s *stubConsumptionStore) List(_ context.Context, _ int64) ([]domain.MonthlyConsumption, error) {
 	return s.data, s.err
 }
 

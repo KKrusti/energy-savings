@@ -51,7 +51,14 @@ async function extractFullText(file: File): Promise<string> {
     parts.push(pageText)
   }
 
-  return parts.join(' ')
+  // Some PDFs (older Endesa invoices) render each digit as a separate glyph,
+  // producing "1 0" instead of "10". Collapse single spaces between adjacent
+  // digits. Run three times to handle chains like "2 0 2 5" → "2025".
+  let text = parts.join(' ')
+  for (let i = 0; i < 3; i++) {
+    text = text.replace(/(\d) (\d)/g, '$1$2')
+  }
+  return text
 }
 
 function extractBillingPeriod(text: string): { month: number; year: number } | null {
@@ -64,13 +71,26 @@ function extractBillingPeriod(text: string): { month: number; year: number } | n
 }
 
 function extractContractedPower(text: string): { peak: number; valley: number } | null {
-  // "Potencias contratadas: punta-llano 5,750 kW; valle 5,750 kW"
-  const match = text.match(
+  // Format A (newer): "Potencias contratadas: punta-llano 5,750 kW; valle 5,750 kW"
+  const matchA = text.match(
     /[Pp]otencias?\s+contratadas?:?\s*punta[- ]?llano\s+([\d.,]+)\s*k[Ww][;,]?\s*valle\s+([\d.,]+)/i,
   )
-  if (match) {
-    return { peak: parseSpanishNumber(match[1]), valley: parseSpanishNumber(match[2]) }
+  if (matchA) {
+    return { peak: parseSpanishNumber(matchA[1]), valley: parseSpanishNumber(matchA[2]) }
   }
+
+  // Format B (older): power table row "Punta-Llano  3,271  1  3,271  Valle  3,202  1  3,202"
+  // inside the "Potencia kW" section of the detail table
+  const num = '[\\d.,]+'
+  const matchB = text.match(
+    new RegExp(
+      `[Pp]otencia\\s+k[Ww][\\s\\S]{0,50}?[Pp]unta-[Ll]lano\\s+(${num})\\s+${num}\\s+${num}\\s+[Vv]alle\\s+(${num})`,
+    ),
+  )
+  if (matchB) {
+    return { peak: parseSpanishNumber(matchB[1]), valley: parseSpanishNumber(matchB[2]) }
+  }
+
   return null
 }
 

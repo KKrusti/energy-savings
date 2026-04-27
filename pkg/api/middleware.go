@@ -50,9 +50,11 @@ func RequireAuth(checker tokenChecker) func(http.Handler) http.Handler {
 }
 
 // UserIDFromContext extracts the authenticated user ID from the request context.
-// Panics if called outside a RequireAuth-protected handler.
+// Returns 0 if the value is absent — callers inside RequireAuth-protected handlers
+// will always get a valid ID; a zero return signals a misconfigured route.
 func UserIDFromContext(ctx context.Context) int64 {
-	return ctx.Value(userIDKey).(int64)
+	id, _ := ctx.Value(userIDKey).(int64)
+	return id
 }
 
 func bearerToken(r *http.Request) string {

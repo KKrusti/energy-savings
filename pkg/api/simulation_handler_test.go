@@ -19,10 +19,10 @@ type stubSimOfferService struct {
 	offers []domain.Offer
 }
 
-func (s *stubSimOfferService) ListOffers(_ context.Context) ([]domain.Offer, error) {
+func (s *stubSimOfferService) ListOffers(_ context.Context, _ int64) ([]domain.Offer, error) {
 	return s.offers, nil
 }
-func (s *stubSimOfferService) GetOffer(_ context.Context, id int64) (domain.Offer, error) {
+func (s *stubSimOfferService) GetOffer(_ context.Context, id int64, _ int64) (domain.Offer, error) {
 	for _, o := range s.offers {
 		if o.ID == id {
 			return o, nil

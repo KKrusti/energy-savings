@@ -29,6 +29,7 @@ func NewRouter(
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(securityHeaders)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   origins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -46,8 +47,9 @@ func NewRouter(
 			r.Post("/logout", authH.Logout)
 		})
 
-		// Protected routes — require valid JWT
+		// Protected routes — require valid JWT; general rate limit prevents abuse
 		r.Group(func(r chi.Router) {
+			r.Use(httprate.LimitByIP(200, time.Minute))
 			r.Use(RequireAuth(userRepo))
 
 			r.Post("/auth/password", authH.ChangePassword)
@@ -73,6 +75,17 @@ func NewRouter(
 	})
 
 	return r
+}
+
+// securityHeaders sets standard defensive HTTP headers on every response.
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+		next.ServeHTTP(w, r)
+	})
 }
 
 // parseOrigins splits a comma-separated origins string into a slice,

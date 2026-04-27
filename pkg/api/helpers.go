@@ -39,6 +39,11 @@ func decodeJSON(r *http.Request, v any) error {
 	return nil
 }
 
+const (
+	maxConsumptionKWh = 100_000.0 // sanity cap for residential/small-business consumption
+	maxPowerKW        = 100.0     // well above any residential contracted power
+)
+
 // validateMonthlyConsumption validates a single MonthlyConsumption entry.
 // Shared by SimulationHandler (SimulateAnnual) and ConsumptionHandler (SaveHistory).
 // When requireYear is true, the year field must be in the range [2000, 2100].
@@ -52,8 +57,17 @@ func validateMonthlyConsumption(m domain.MonthlyConsumption, requireYear bool) (
 	if m.PeakKWh < 0 || m.MidKWh < 0 || m.ValleyKWh < 0 || m.SurplusKWh < 0 {
 		return http.StatusUnprocessableEntity, "los valores de consumo no pueden ser negativos"
 	}
+	if m.PeakKWh > maxConsumptionKWh || m.MidKWh > maxConsumptionKWh || m.ValleyKWh > maxConsumptionKWh || m.SurplusKWh > maxConsumptionKWh {
+		return http.StatusUnprocessableEntity, "los valores de consumo superan el límite permitido"
+	}
 	if m.PowerPeakKW <= 0 || m.PowerValleyKW <= 0 {
 		return http.StatusUnprocessableEntity, "power_peak_kw y power_valley_kw deben ser mayores que 0"
+	}
+	if m.PowerPeakKW > maxPowerKW || m.PowerValleyKW > maxPowerKW {
+		return http.StatusUnprocessableEntity, "los valores de potencia superan el límite permitido"
+	}
+	if m.IVARate < 0 || m.IVARate > 1 {
+		return http.StatusUnprocessableEntity, "iva_rate debe estar entre 0 y 1"
 	}
 	return 0, ""
 }

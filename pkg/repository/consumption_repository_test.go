@@ -44,7 +44,7 @@ func TestConsumptionRepository_UpsertAndList(t *testing.T) {
 	}
 	require.NoError(t, repo.Upsert(ctx, input))
 
-	got, err := repo.List(ctx)
+	got, err := repo.List(ctx, 1)
 	require.NoError(t, err)
 	assert.Len(t, got, 2)
 	// Ordered chronologically
@@ -68,7 +68,7 @@ func TestConsumptionRepository_UpsertReplaces(t *testing.T) {
 	}
 	require.NoError(t, repo.Upsert(ctx, updated))
 
-	got, err := repo.List(ctx)
+	got, err := repo.List(ctx, 1)
 	require.NoError(t, err)
 	assert.Len(t, got, 1)
 	assert.InDelta(t, 200.0, got[0].PeakKWh, 0.001)
@@ -87,7 +87,7 @@ func TestConsumptionRepository_ListOrderedChronologically(t *testing.T) {
 	}
 	require.NoError(t, repo.Upsert(ctx, months))
 
-	got, err := repo.List(ctx)
+	got, err := repo.List(ctx, 1)
 	require.NoError(t, err)
 	require.Len(t, got, 3)
 	assert.Equal(t, 11, got[0].Month)

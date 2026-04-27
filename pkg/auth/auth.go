@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	tokenTTL     = 24 * time.Hour
+	tokenTTL     = 1 * time.Hour
 	bcryptCost   = 12
 	jwtSecretEnv = "JWT_SECRET"
 	minSecretLen = 32

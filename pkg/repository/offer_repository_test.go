@@ -94,7 +94,7 @@ func TestOfferRepository_Create(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := newTestRepo(t)
-			offer, err := repo.Create(context.Background(), tc.input)
+			offer, err := repo.Create(context.Background(), tc.input, 1)
 			if tc.wantErr {
 				require.Error(t, err)
 				return
@@ -116,18 +116,18 @@ func TestOfferRepository_GetByID(t *testing.T) {
 	repo := newTestRepo(t)
 	ctx := context.Background()
 
-	created, err := repo.Create(ctx, baseInput())
+	created, err := repo.Create(ctx, baseInput(), 1)
 	require.NoError(t, err)
 
 	t.Run("found", func(t *testing.T) {
-		got, err := repo.GetByID(ctx, created.ID)
+		got, err := repo.GetByID(ctx, created.ID, 1)
 		require.NoError(t, err)
 		assert.Equal(t, created.ID, got.ID)
 		assert.Equal(t, created.EnergyPricePeakKWh, got.EnergyPricePeakKWh)
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		_, err := repo.GetByID(ctx, 9999)
+		_, err := repo.GetByID(ctx, 9999, 1)
 		assert.ErrorIs(t, err, repository.ErrOfferNotFound)
 	})
 }
@@ -136,18 +136,18 @@ func TestOfferRepository_List(t *testing.T) {
 	repo := newTestRepo(t)
 	ctx := context.Background()
 
-	list, err := repo.List(ctx)
+	list, err := repo.List(ctx, 1)
 	require.NoError(t, err)
 	assert.Empty(t, list)
 
 	for _, name := range []string{"Offer A", "Offer B", "Offer C"} {
 		inp := baseInput()
 		inp.Name = name
-		_, err := repo.Create(ctx, inp)
+		_, err := repo.Create(ctx, inp, 1)
 		require.NoError(t, err)
 	}
 
-	list, err = repo.List(ctx)
+	list, err = repo.List(ctx, 1)
 	require.NoError(t, err)
 	assert.Len(t, list, 3)
 }
@@ -156,7 +156,7 @@ func TestOfferRepository_Update(t *testing.T) {
 	repo := newTestRepo(t)
 	ctx := context.Background()
 
-	created, err := repo.Create(ctx, baseInput())
+	created, err := repo.Create(ctx, baseInput(), 1)
 	require.NoError(t, err)
 
 	t.Run("update to tiered pricing", func(t *testing.T) {
@@ -190,16 +190,16 @@ func TestOfferRepository_Delete(t *testing.T) {
 	repo := newTestRepo(t)
 	ctx := context.Background()
 
-	created, err := repo.Create(ctx, baseInput())
+	created, err := repo.Create(ctx, baseInput(), 1)
 	require.NoError(t, err)
 
 	t.Run("successful delete", func(t *testing.T) {
-		require.NoError(t, repo.Delete(ctx, created.ID))
-		_, err = repo.GetByID(ctx, created.ID)
+		require.NoError(t, repo.Delete(ctx, created.ID, 1))
+		_, err = repo.GetByID(ctx, created.ID, 1)
 		assert.ErrorIs(t, err, repository.ErrOfferNotFound)
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		assert.ErrorIs(t, repo.Delete(ctx, 9999), repository.ErrOfferNotFound)
+		assert.ErrorIs(t, repo.Delete(ctx, 9999, 1), repository.ErrOfferNotFound)
 	})
 }

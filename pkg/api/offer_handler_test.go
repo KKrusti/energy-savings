@@ -25,7 +25,7 @@ func newStubOfferService() *stubOfferService {
 	return &stubOfferService{offers: make(map[int64]domain.Offer), nextID: 1}
 }
 
-func (s *stubOfferService) CreateOffer(_ context.Context, input domain.CreateOfferInput) (domain.Offer, error) {
+func (s *stubOfferService) CreateOffer(_ context.Context, input domain.CreateOfferInput, _ int64) (domain.Offer, error) {
 	if input.Name == "" {
 		return domain.Offer{}, service.ErrInvalidInput
 	}
@@ -40,14 +40,14 @@ func (s *stubOfferService) CreateOffer(_ context.Context, input domain.CreateOff
 	return o, nil
 }
 
-func (s *stubOfferService) GetOffer(_ context.Context, id int64) (domain.Offer, error) {
+func (s *stubOfferService) GetOffer(_ context.Context, id int64, _ int64) (domain.Offer, error) {
 	if o, ok := s.offers[id]; ok {
 		return o, nil
 	}
 	return domain.Offer{}, service.ErrOfferNotFound
 }
 
-func (s *stubOfferService) ListOffers(_ context.Context) ([]domain.Offer, error) {
+func (s *stubOfferService) ListOffers(_ context.Context, _ int64) ([]domain.Offer, error) {
 	result := make([]domain.Offer, 0, len(s.offers))
 	for _, o := range s.offers {
 		result = append(result, o)
@@ -55,7 +55,7 @@ func (s *stubOfferService) ListOffers(_ context.Context) ([]domain.Offer, error)
 	return result, nil
 }
 
-func (s *stubOfferService) UpdateOffer(_ context.Context, id int64, input domain.UpdateOfferInput) (domain.Offer, error) {
+func (s *stubOfferService) UpdateOffer(_ context.Context, id int64, input domain.UpdateOfferInput, _ int64) (domain.Offer, error) {
 	if _, ok := s.offers[id]; !ok {
 		return domain.Offer{}, service.ErrOfferNotFound
 	}
@@ -64,7 +64,7 @@ func (s *stubOfferService) UpdateOffer(_ context.Context, id int64, input domain
 	return o, nil
 }
 
-func (s *stubOfferService) DeleteOffer(_ context.Context, id int64) error {
+func (s *stubOfferService) DeleteOffer(_ context.Context, id int64, _ int64) error {
 	if _, ok := s.offers[id]; !ok {
 		return service.ErrOfferNotFound
 	}
