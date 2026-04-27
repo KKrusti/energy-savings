@@ -33,7 +33,7 @@ const selectCols = `
 	power_term_same_price, power_term_price_peak, power_term_price_valley,
 	surplus_compensation,
 	has_permanence, permanence_months,
-	is_green_energy, notes, is_current, created_at, updated_at`
+	is_green_energy, notes, is_current, is_public, created_at, updated_at`
 
 func scanOffer(row interface {
 	Scan(...any) error
@@ -45,7 +45,7 @@ func scanOffer(row interface {
 		&o.PowerTermSamePrice, &o.PowerTermPricePeak, &o.PowerTermPriceValley,
 		&o.SurplusCompensation,
 		&o.HasPermanence, &o.PermanenceMonths,
-		&o.IsGreenEnergy, &o.Notes, &o.IsCurrent, &o.CreatedAt, &o.UpdatedAt,
+		&o.IsGreenEnergy, &o.Notes, &o.IsCurrent, &o.IsPublic, &o.CreatedAt, &o.UpdatedAt,
 	)
 	if err != nil {
 		return domain.Offer{}, err
@@ -62,8 +62,8 @@ func (r *OfferRepository) Create(ctx context.Context, input domain.CreateOfferIn
 			power_term_same_price, power_term_price_peak, power_term_price_valley,
 			surplus_compensation,
 			has_permanence, permanence_months,
-			is_green_energy, notes, is_current, user_id
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+			is_green_energy, notes, is_current, is_public, user_id
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
 		RETURNING ` + selectCols
 
 	row := r.db.QueryRowContext(ctx, q,
@@ -72,7 +72,7 @@ func (r *OfferRepository) Create(ctx context.Context, input domain.CreateOfferIn
 		input.PowerTermSamePrice, input.PowerTermPricePeak, input.PowerTermPriceValley,
 		input.SurplusCompensation,
 		input.HasPermanence, input.PermanenceMonths,
-		input.IsGreenEnergy, input.Notes, input.IsCurrent, userID,
+		input.IsGreenEnergy, input.Notes, input.IsCurrent, input.IsPublic, userID,
 	)
 	o, err := scanOffer(row)
 	if err != nil {
@@ -123,8 +123,8 @@ func (r *OfferRepository) Update(ctx context.Context, id int64, input domain.Upd
 			power_term_same_price=$7, power_term_price_peak=$8, power_term_price_valley=$9,
 			surplus_compensation=$10,
 			has_permanence=$11, permanence_months=$12,
-			is_green_energy=$13, notes=$14, is_current=$15
-		WHERE id=$16 AND user_id=$17`
+			is_green_energy=$13, notes=$14, is_current=$15, is_public=$16
+		WHERE id=$17 AND user_id=$18`
 
 	res, err := r.db.ExecContext(ctx, q,
 		input.Name, input.Provider,
@@ -132,7 +132,7 @@ func (r *OfferRepository) Update(ctx context.Context, id int64, input domain.Upd
 		input.PowerTermSamePrice, input.PowerTermPricePeak, input.PowerTermPriceValley,
 		input.SurplusCompensation,
 		input.HasPermanence, input.PermanenceMonths,
-		input.IsGreenEnergy, input.Notes, input.IsCurrent,
+		input.IsGreenEnergy, input.Notes, input.IsCurrent, input.IsPublic,
 		id, userID,
 	)
 	if err != nil {
@@ -186,8 +186,8 @@ func (r *OfferRepository) CreateAsCurrent(ctx context.Context, input domain.Crea
 			power_term_same_price, power_term_price_peak, power_term_price_valley,
 			surplus_compensation,
 			has_permanence, permanence_months,
-			is_green_energy, notes, is_current, user_id
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+			is_green_energy, notes, is_current, is_public, user_id
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
 		RETURNING ` + selectCols
 
 	row := tx.QueryRowContext(ctx, q,
@@ -196,7 +196,7 @@ func (r *OfferRepository) CreateAsCurrent(ctx context.Context, input domain.Crea
 		input.PowerTermSamePrice, input.PowerTermPricePeak, input.PowerTermPriceValley,
 		input.SurplusCompensation,
 		input.HasPermanence, input.PermanenceMonths,
-		input.IsGreenEnergy, input.Notes, input.IsCurrent, userID,
+		input.IsGreenEnergy, input.Notes, input.IsCurrent, input.IsPublic, userID,
 	)
 	o, err := scanOffer(row)
 	if err != nil {
@@ -228,8 +228,8 @@ func (r *OfferRepository) UpdateAsCurrent(ctx context.Context, id int64, input d
 			power_term_same_price=$7, power_term_price_peak=$8, power_term_price_valley=$9,
 			surplus_compensation=$10,
 			has_permanence=$11, permanence_months=$12,
-			is_green_energy=$13, notes=$14, is_current=$15
-		WHERE id=$16 AND user_id=$17`
+			is_green_energy=$13, notes=$14, is_current=$15, is_public=$16
+		WHERE id=$17 AND user_id=$18`
 
 	res, err := tx.ExecContext(ctx, q,
 		input.Name, input.Provider,
@@ -237,7 +237,7 @@ func (r *OfferRepository) UpdateAsCurrent(ctx context.Context, id int64, input d
 		input.PowerTermSamePrice, input.PowerTermPricePeak, input.PowerTermPriceValley,
 		input.SurplusCompensation,
 		input.HasPermanence, input.PermanenceMonths,
-		input.IsGreenEnergy, input.Notes, input.IsCurrent,
+		input.IsGreenEnergy, input.Notes, input.IsCurrent, input.IsPublic,
 		id, userID,
 	)
 	if err != nil {
@@ -256,6 +256,41 @@ func (r *OfferRepository) UpdateAsCurrent(ctx context.Context, id int64, input d
 
 	if err := tx.Commit(); err != nil {
 		return domain.Offer{}, fmt.Errorf("commit update-as-current: %w", err)
+	}
+	return o, nil
+}
+
+// ListPublic returns all offers marked as public, ordered by creation date descending.
+// This is intentionally not scoped to a single userID so any authenticated user can browse them.
+func (r *OfferRepository) ListPublic(ctx context.Context) ([]domain.Offer, error) {
+	q := `SELECT ` + selectCols + ` FROM offers WHERE is_public = TRUE ORDER BY created_at DESC`
+	rows, err := r.db.QueryContext(ctx, q)
+	if err != nil {
+		return nil, fmt.Errorf("list public offers: %w", err)
+	}
+	defer rows.Close()
+
+	var offers []domain.Offer
+	for rows.Next() {
+		o, err := scanOffer(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan public offer: %w", err)
+		}
+		offers = append(offers, o)
+	}
+	return offers, rows.Err()
+}
+
+// GetPublicByID returns the public offer with the given ID, or ErrOfferNotFound.
+// Does not filter by userID — used for the import flow where any user can read a public offer.
+func (r *OfferRepository) GetPublicByID(ctx context.Context, id int64) (domain.Offer, error) {
+	q := `SELECT ` + selectCols + ` FROM offers WHERE id = $1 AND is_public = TRUE`
+	o, err := scanOffer(r.db.QueryRowContext(ctx, q, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Offer{}, ErrOfferNotFound
+	}
+	if err != nil {
+		return domain.Offer{}, fmt.Errorf("get public offer by id: %w", err)
 	}
 	return o, nil
 }

@@ -25,6 +25,8 @@ type offerRepo interface {
 	Delete(ctx context.Context, id int64, userID int64) error
 	CreateAsCurrent(ctx context.Context, input domain.CreateOfferInput, userID int64) (domain.Offer, error)
 	UpdateAsCurrent(ctx context.Context, id int64, input domain.UpdateOfferInput, userID int64) (domain.Offer, error)
+	ListPublic(ctx context.Context) ([]domain.Offer, error)
+	GetPublicByID(ctx context.Context, id int64) (domain.Offer, error)
 }
 
 // OfferService orchestrates offer operations.
@@ -88,6 +90,43 @@ func (s *OfferService) DeleteOffer(ctx context.Context, id int64, userID int64) 
 		return ErrOfferNotFound
 	}
 	return err
+}
+
+// ListPublicOffers returns all offers that have been shared publicly.
+func (s *OfferService) ListPublicOffers(ctx context.Context) ([]domain.Offer, error) {
+	return s.repo.ListPublic(ctx)
+}
+
+// ImportOffer copies a public offer into the requesting user's private collection.
+// The imported copy has is_public=false and is_current=false.
+func (s *OfferService) ImportOffer(ctx context.Context, sourceID int64, userID int64) (domain.Offer, error) {
+	src, err := s.repo.GetPublicByID(ctx, sourceID)
+	if errors.Is(err, repository.ErrOfferNotFound) {
+		return domain.Offer{}, ErrOfferNotFound
+	}
+	if err != nil {
+		return domain.Offer{}, fmt.Errorf("import offer: %w", err)
+	}
+
+	input := domain.CreateOfferInput{
+		Name:                 src.Name,
+		Provider:             src.Provider,
+		EnergyPriceFlat:      src.EnergyPriceFlat,
+		EnergyPricePeakKWh:   src.EnergyPricePeakKWh,
+		EnergyPriceMidKWh:    src.EnergyPriceMidKWh,
+		EnergyPriceValleyKWh: src.EnergyPriceValleyKWh,
+		PowerTermSamePrice:   src.PowerTermSamePrice,
+		PowerTermPricePeak:   src.PowerTermPricePeak,
+		PowerTermPriceValley: src.PowerTermPriceValley,
+		SurplusCompensation:  src.SurplusCompensation,
+		HasPermanence:        src.HasPermanence,
+		PermanenceMonths:     src.PermanenceMonths,
+		IsGreenEnergy:        src.IsGreenEnergy,
+		Notes:                src.Notes,
+		IsCurrent:            false,
+		IsPublic:             false,
+	}
+	return s.repo.Create(ctx, input, userID)
 }
 
 // validateOfferInput is shared by CreateOffer and UpdateOffer to avoid duplication.

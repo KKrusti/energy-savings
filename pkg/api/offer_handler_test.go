@@ -72,6 +72,32 @@ func (s *stubOfferService) DeleteOffer(_ context.Context, id int64, _ int64) err
 	return nil
 }
 
+func (s *stubOfferService) ListPublicOffers(_ context.Context) ([]domain.Offer, error) {
+	result := make([]domain.Offer, 0)
+	for _, o := range s.offers {
+		if o.IsPublic {
+			result = append(result, o)
+		}
+	}
+	return result, nil
+}
+
+func (s *stubOfferService) ImportOffer(_ context.Context, sourceID int64, userID int64) (domain.Offer, error) {
+	o, ok := s.offers[sourceID]
+	if !ok {
+		return domain.Offer{}, service.ErrOfferNotFound
+	}
+	imported := domain.Offer{
+		ID: s.nextID, Name: o.Name, Provider: o.Provider,
+		EnergyPriceFlat: o.EnergyPriceFlat, EnergyPricePeakKWh: o.EnergyPricePeakKWh,
+		PowerTermSamePrice: o.PowerTermSamePrice, PowerTermPricePeak: o.PowerTermPricePeak,
+		IsPublic: false, IsCurrent: false,
+	}
+	s.offers[s.nextID] = imported
+	s.nextID++
+	return imported, nil
+}
+
 func TestOfferHandler_List(t *testing.T) {
 	stub := newStubOfferService()
 	h := api.NewOfferHandler(stub)

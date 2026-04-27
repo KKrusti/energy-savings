@@ -55,6 +55,8 @@ export const offersApi = {
   update: (id: number, data: UpdateOfferInput) =>
     request<Offer>(`/offers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id: number) => request<void>(`/offers/${id}`, { method: 'DELETE' }),
+  listPublic: () => request<Offer[]>('/offers/public'),
+  import: (id: number) => request<Offer>(`/offers/${id}/import`, { method: 'POST' }),
 }
 
 // Simulation

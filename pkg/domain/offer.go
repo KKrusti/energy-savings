@@ -34,6 +34,9 @@ type Offer struct {
 	// Only one offer can be current at a time; the service layer enforces this invariant.
 	IsCurrent bool `json:"is_current"`
 
+	// IsPublic allows other users to discover and import this offer.
+	IsPublic bool `json:"is_public"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -63,6 +66,9 @@ type CreateOfferInput struct {
 	// IsCurrent marks this offer as the user's active tariff.
 	// Setting this to true will unset any previously current offer.
 	IsCurrent bool `json:"is_current"`
+
+	// IsPublic allows other users to discover and import this offer.
+	IsPublic bool `json:"is_public"`
 }
 
 // UpdateOfferInput contains the fields that can be updated on an offer.
@@ -90,4 +96,7 @@ type UpdateOfferInput struct {
 	// IsCurrent marks this offer as the user's active tariff.
 	// Setting this to true will unset any previously current offer.
 	IsCurrent bool `json:"is_current"`
+
+	// IsPublic allows other users to discover and import this offer.
+	IsPublic bool `json:"is_public"`
 }

@@ -103,6 +103,23 @@ func (m *mockOfferRepo) UpdateAsCurrent(ctx context.Context, id int64, input dom
 	return m.Update(ctx, id, input, userID)
 }
 
+func (m *mockOfferRepo) ListPublic(_ context.Context) ([]domain.Offer, error) {
+	result := make([]domain.Offer, 0)
+	for _, o := range m.offers {
+		if o.IsPublic {
+			result = append(result, o)
+		}
+	}
+	return result, nil
+}
+
+func (m *mockOfferRepo) GetPublicByID(_ context.Context, id int64) (domain.Offer, error) {
+	if o, ok := m.offers[id]; ok && o.IsPublic {
+		return o, nil
+	}
+	return domain.Offer{}, repository.ErrOfferNotFound
+}
+
 func validInput() domain.CreateOfferInput {
 	return domain.CreateOfferInput{
 		Name: "Test", Provider: "Endesa",

@@ -18,6 +18,8 @@ type offerService interface {
 	ListOffers(ctx context.Context, userID int64) ([]domain.Offer, error)
 	UpdateOffer(ctx context.Context, id int64, input domain.UpdateOfferInput, userID int64) (domain.Offer, error)
 	DeleteOffer(ctx context.Context, id int64, userID int64) error
+	ListPublicOffers(ctx context.Context) ([]domain.Offer, error)
+	ImportOffer(ctx context.Context, sourceID int64, userID int64) (domain.Offer, error)
 }
 
 // OfferHandler handles HTTP requests for offers.
@@ -142,4 +144,37 @@ func parseID(r *http.Request) (int64, error) {
 		return 0, errors.New("id must be a positive integer")
 	}
 	return id, nil
+}
+
+// ListPublic godoc - GET /api/offers/public
+func (h *OfferHandler) ListPublic(w http.ResponseWriter, r *http.Request) {
+	offers, err := h.svc.ListPublicOffers(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "error al listar ofertas públicas")
+		return
+	}
+	if offers == nil {
+		offers = []domain.Offer{}
+	}
+	writeJSON(w, http.StatusOK, offers)
+}
+
+// Import godoc - POST /api/offers/{id}/import
+func (h *OfferHandler) Import(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	userID := UserIDFromContext(r.Context())
+	offer, err := h.svc.ImportOffer(r.Context(), id, userID)
+	if errors.Is(err, service.ErrOfferNotFound) {
+		writeError(w, http.StatusNotFound, "oferta pública no encontrada")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "error al importar oferta")
+		return
+	}
+	writeJSON(w, http.StatusCreated, offer)
 }

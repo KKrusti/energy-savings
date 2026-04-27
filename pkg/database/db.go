@@ -145,6 +145,12 @@ var migrations = []migration{
 			`ALTER TABLE consumption_history ADD COLUMN IF NOT EXISTS iva_rate DOUBLE PRECISION NOT NULL DEFAULT 0`,
 		},
 	},
+	{
+		version: 7,
+		stmts: []string{
+			`ALTER TABLE offers ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT FALSE`,
+		},
+	},
 }
 
 func migrate(ctx context.Context, db *sql.DB) error {

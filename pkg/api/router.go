@@ -57,10 +57,12 @@ func NewRouter(
 			r.Route("/offers", func(r chi.Router) {
 				r.Get("/", offerH.List)
 				r.Post("/", offerH.Create)
+				r.Get("/public", offerH.ListPublic)
 				r.Route("/{id}", func(r chi.Router) {
 					r.Get("/", offerH.Get)
 					r.Put("/", offerH.Update)
 					r.Delete("/", offerH.Delete)
+					r.Post("/import", offerH.Import)
 				})
 			})
 

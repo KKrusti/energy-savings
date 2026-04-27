@@ -21,6 +21,8 @@ export interface Offer {
   notes: string
   // Current tariff flag — only one offer can have this set to true at a time
   is_current: boolean
+  // Public flag — when true, other authenticated users can discover and import this offer
+  is_public: boolean
   created_at: string
   updated_at: string
 }
@@ -42,6 +44,8 @@ export interface CreateOfferInput {
   notes: string
   // Setting this to true will unset any previously current offer (handled by the backend).
   is_current: boolean
+  // When true, other authenticated users can discover and import this offer.
+  is_public: boolean
 }
 
 // UpdateOfferInput mirrors CreateOfferInput — all fields are required on update (full replacement).

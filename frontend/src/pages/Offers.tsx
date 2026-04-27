@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Globe } from 'lucide-react'
 import { OfferCard } from '@/components/OfferCard'
 import { OfferForm } from '@/components/OfferForm'
+import { PublicOffersModal } from '@/components/PublicOffersModal'
 import { useOffers, useCreateOffer, useUpdateOffer, useDeleteOffer } from '@/hooks/useOffers'
 import { useLastAnnualSimulation } from '@/hooks/useLastAnnualSimulation'
 import type { AnnualSaving } from '@/components/OfferCard'
@@ -10,6 +11,7 @@ import type { CreateOfferInput, Offer } from '@/types'
 export function OffersPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingOffer, setEditingOffer] = useState<Offer | null>(null)
+  const [showPublicOffers, setShowPublicOffers] = useState(false)
 
   const { data: offers = [], isLoading, error } = useOffers()
   const createMutation = useCreateOffer()
@@ -98,16 +100,28 @@ export function OffersPage() {
             Registra las tarifas que encuentres para compararlas
           </p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
-            bg-primary text-[#0F172A] hover:bg-primary-light
-            transition-colors duration-200 cursor-pointer
-            focus:outline-none focus:ring-2 focus:ring-primary/50"
-        >
-          <Plus className="w-4 h-4" aria-hidden="true" />
-          Nueva oferta
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowPublicOffers(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
+              bg-violet-600 text-white hover:bg-violet-500
+              transition-colors duration-200 cursor-pointer
+              focus:outline-none focus:ring-2 focus:ring-violet-400/50"
+          >
+            <Globe className="w-4 h-4" aria-hidden="true" />
+            Buscar ofertas públicas
+          </button>
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
+              bg-primary text-[#0F172A] hover:bg-primary-light
+              transition-colors duration-200 cursor-pointer
+              focus:outline-none focus:ring-2 focus:ring-primary/50"
+          >
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            Nueva oferta
+          </button>
+        </div>
       </div>
 
       {isLoading && (
@@ -152,6 +166,10 @@ export function OffersPage() {
           onCancel={handleClose}
           isLoading={isMutating}
         />
+      )}
+
+      {showPublicOffers && (
+        <PublicOffersModal onClose={() => setShowPublicOffers(false)} />
       )}
     </section>
   )

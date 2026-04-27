@@ -28,6 +28,7 @@ const defaultValues: FormValues = {
   is_green_energy: false,
   notes: '',
   is_current: false,
+  is_public: false,
 }
 
 export function OfferForm({ offer, onSubmit, onCancel, isLoading }: OfferFormProps) {
@@ -55,6 +56,7 @@ export function OfferForm({ offer, onSubmit, onCancel, isLoading }: OfferFormPro
       is_green_energy: offer.is_green_energy,
       notes: offer.notes,
       is_current: offer.is_current,
+      is_public: offer.is_public,
     } : defaultValues)
   }, [offer, reset])
 
@@ -306,6 +308,11 @@ export function OfferForm({ offer, onSubmit, onCancel, isLoading }: OfferFormPro
               id="is_current"
               label="Esta es mi tarifa actual (referencia de comparación)"
               {...register('is_current')}
+            />
+            <CheckboxToggle
+              id="is_public"
+              label="Compartir esta oferta públicamente con otros usuarios"
+              {...register('is_public')}
             />
           </Section>
 
